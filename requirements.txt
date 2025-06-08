@@ -1,0 +1,7 @@
+flask==2.3.3
+flask-socketio==5.3.6
+adafruit-circuitpython-ssd1306==2.12.14
+pillow==10.0.1
+pygame==2.5.2
+pyserial==3.5
+python-socketio==5.8.0
