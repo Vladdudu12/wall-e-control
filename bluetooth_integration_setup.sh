@@ -90,12 +90,11 @@ echo "================================================"
 echo "Installing enhanced audio system..."
 echo "================================================"
 
-# Create enhanced audio system file
-cat > modules/audio_system.py << 'EOF'
+# Replace the audio system with the enhanced version
+cat > modules/audio_system.py << 'AUDIO_EOF'
 #!/usr/bin/env python3
 """
 Enhanced Audio System Module for Wall-E with Bluetooth Support
-Handles sound effects, text-to-speech, Bluetooth speakers, and audio routing
 """
 
 import pygame
@@ -103,7 +102,7 @@ import os
 import subprocess
 import threading
 import time
-import json
+import math
 from typing import Dict, Optional, List, Callable
 
 class BluetoothAudioManager:
@@ -243,9 +242,7 @@ class BluetoothAudioManager:
 
 class AudioSystem:
     def __init__(self, sounds_dir='sounds', static_sounds_dir='static/sounds', volume=0.7):
-        """
-        Initialize enhanced audio system with Bluetooth support
-        """
+        """Initialize enhanced audio system with Bluetooth support"""
         self.sounds_dir = sounds_dir
         self.static_sounds_dir = static_sounds_dir
         self.volume = volume
@@ -257,7 +254,7 @@ class AudioSystem:
         self.connection_status_callback = None
         self.audio_status_callback = None
         
-        # Initialize pygame mixer with better quality settings for Bluetooth
+        # Initialize pygame mixer
         try:
             pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=1024)
             pygame.mixer.init()
@@ -280,7 +277,7 @@ class AudioSystem:
     def _auto_connect_bluetooth(self):
         """Automatically connect to Bluetooth speaker in background"""
         def connect_thread():
-            time.sleep(2)  # Wait for system to be ready
+            time.sleep(2)
             if self.bluetooth_manager.auto_connect_default_speaker():
                 if self.connection_status_callback:
                     self.connection_status_callback(True, "Bluetooth speaker connected")
@@ -290,7 +287,6 @@ class AudioSystem:
     
     def _load_sounds(self):
         """Load all sound files from both sound directories"""
-        # Check both possible sound directories
         sound_dirs = [self.sounds_dir, self.static_sounds_dir]
         
         for sounds_dir in sound_dirs:
@@ -321,7 +317,6 @@ class AudioSystem:
         if not self.available:
             return
         
-        # Enhanced Wall-E sound patterns with more character
         sound_patterns = {
             'startup': [(220, 0.3), (440, 0.3), (660, 0.4), (880, 0.6), (660, 0.3)],
             'curious': [(330, 0.15), (550, 0.15), (440, 0.2), (660, 0.25), (550, 0.2)],
@@ -406,8 +401,9 @@ class AudioSystem:
                     for i in range(samples):
                         sample_value = int(32767 * 0.3 * 
                                          math.sin(2 * math.pi * frequency * i / sample_rate))
-                        waveform[current_sample * 2] = sample_value
-                        waveform[current_sample * 2 + 1] = sample_value
+                        if current_sample * 2 < len(waveform):
+                            waveform[current_sample * 2] = sample_value
+                            waveform[current_sample * 2 + 1] = sample_value
                         current_sample += 1
                 else:
                     current_sample += samples
@@ -601,7 +597,7 @@ class AudioSystem:
 
 # Backwards compatibility alias
 EnhancedAudioSystem = AudioSystem
-EOF
+AUDIO_EOF
 
 echo "✓ Enhanced audio system installed"
 
@@ -611,7 +607,7 @@ echo "Adding Bluetooth API endpoints to app.py..."
 echo "================================================"
 
 # Add Bluetooth API endpoints to app.py
-cat >> app.py << 'EOF'
+cat >> app.py << 'API_EOF'
 
 # Bluetooth API endpoints
 @app.route('/api/bluetooth/status')
@@ -799,54 +795,164 @@ def bluetooth_volume():
             'success': False,
             'message': str(e)
         }), 500
-EOF
+API_EOF
 
 echo "✓ Bluetooth API endpoints added to app.py"
 
 echo ""
 echo "================================================"
-echo "Installing Bluetooth web interface..."
+echo "Creating Bluetooth setup script..."
 echo "================================================"
 
-# Add Bluetooth panel to index.html before the closing body tag
-sed -i '/<\/body>/i\
-    <!-- Bluetooth Audio Control Panel -->\
-    <div class="control-panel bluetooth-panel">\
-        <div class="panel-title">🔊 Bluetooth Audio Control</div>\
-        \
-        <!-- Bluetooth Status -->\
-        <div class="bluetooth-status" id="bluetooth-status">\
-            <div>\
-                <span class="bluetooth-icon">📶</span>\
-                <span class="status-text" id="bluetooth-status-text">Checking connection...</span>\
-            </div>\
-            <button class="test-btn" onclick="testBluetoothAudio()" id="test-audio-btn">🔊 Test Audio</button>\
-        </div>\
-\
-        <!-- Device Scanner -->\
-        <div style="text-align: center; margin-bottom: 20px;">\
-            <button class="scan-btn" onclick="scanBluetoothDevices()" id="scan-btn">\
-                🔍 Scan for Speakers\
-            </button>\
-        </div>\
-\
-        <!-- Device List -->\
-        <div class="device-list" id="device-list">\
-            <div class="loading">No devices found. Click "Scan for Speakers" to search.</div>\
-        </div>\
-\
-        <!-- Volume Control -->\
-        <div class="volume-control">\
-            <span>🔉</span>\
-            <input type="range" class="volume-slider" min="0" max="100" value="70" \
-                   onchange="setBluetoothVolume(this.value)" id="volume-slider">\
-            <div class="volume-display" id="volume-display">70%</div>\
-            <span>🔊</span>\
-        </div>\
-    </div>' templates/index.html
+# Create a separate Bluetooth setup script for users
+cat > setup_bluetooth_speaker.sh << 'SETUP_EOF'
+#!/bin/bash
+echo "================================================"
+echo "Wall-E Bluetooth Speaker Quick Setup"
+echo "================================================"
+
+echo "This script will help you connect a Bluetooth speaker to Wall-E."
+echo ""
+echo "Before continuing, please:"
+echo "1. Turn on your Bluetooth speaker"
+echo "2. Put it in pairing/discoverable mode"
+echo "3. Make sure it's close to the Raspberry Pi"
+echo ""
+read -p "Press Enter when ready to continue..."
+
+echo ""
+echo "Scanning for Bluetooth devices..."
+
+# Start Bluetooth scan
+sudo bluetoothctl scan on &
+SCAN_PID=$!
+
+# Show spinner during scan
+echo -n "Scanning"
+for i in {1..15}; do
+    echo -n "."
+    sleep 1
+done
+echo ""
+
+# Stop scan
+sudo kill $SCAN_PID 2>/dev/null
+echo "scan off" | sudo bluetoothctl
+
+echo ""
+echo "Available Bluetooth devices:"
+echo "devices" | sudo bluetoothctl | grep Device
+
+echo ""
+echo "Enter the MAC address of your Bluetooth speaker"
+echo "(Format: XX:XX:XX:XX:XX:XX - example: 12:34:56:78:9A:BC)"
+read -p "MAC Address: " SPEAKER_MAC
+
+if [[ $SPEAKER_MAC =~ ^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$ ]]; then
+    echo ""
+    echo "Connecting to $SPEAKER_MAC..."
+    
+    # Trust, pair, and connect
+    echo "trust $SPEAKER_MAC" | sudo bluetoothctl
+    echo "pair $SPEAKER_MAC" | sudo bluetoothctl
+    echo "connect $SPEAKER_MAC" | sudo bluetoothctl
+    
+    sleep 3
+    
+    # Check if connected
+    if echo "info $SPEAKER_MAC" | sudo bluetoothctl | grep -q "Connected: yes"; then
+        echo "✓ Successfully connected to Bluetooth speaker!"
+        
+        # Save configuration
+        echo "BLUETOOTH_SPEAKER_MAC=$SPEAKER_MAC" > ~/.walle_bluetooth_config
+        echo "✓ Configuration saved"
+        
+        # Set as default audio output
+        pacmd set-default-sink $(pacmd list-sinks | grep -A1 "bluez" | grep "index:" | awk '{print $2}' | head -1) 2>/dev/null
+        
+        # Test audio
+        echo ""
+        echo "Testing audio..."
+        speaker-test -t sine -f 1000 -l 1 -s 1 2>/dev/null &
+        sleep 2
+        pkill speaker-test
+        
+        echo ""
+        echo "🎉 Bluetooth speaker setup complete!"
+        echo ""
+        echo "Your Wall-E will now use this speaker for audio output."
+        echo "Restart the Wall-E service to apply changes:"
+        echo "  sudo systemctl restart walle-control.service"
+        echo ""
+        echo "You can also manage Bluetooth speakers through the web interface at:"
+        echo "  http://wall-e.local:5000"
+        
+    else
+        echo "❌ Failed to connect to Bluetooth speaker"
+        echo "Please try again or check if the speaker is in pairing mode"
+    fi
+else
+    echo "❌ Invalid MAC address format"
+    echo "Please run the script again with a valid MAC address"
+fi
+SETUP_EOF
+
+chmod +x setup_bluetooth_speaker.sh
+echo "✓ Created setup_bluetooth_speaker.sh"
+
+echo ""
+echo "================================================"
+echo "Adding Bluetooth web interface..."
+echo "================================================"
+
+# Create a temporary file for the new HTML content
+cat > /tmp/bluetooth_panel.html << 'HTML_EOF'
+    <!-- Bluetooth Audio Control Panel -->
+    <div class="control-panel bluetooth-panel">
+        <div class="panel-title">🔊 Bluetooth Audio Control</div>
+        
+        <!-- Bluetooth Status -->
+        <div class="bluetooth-status" id="bluetooth-status">
+            <div>
+                <span class="bluetooth-icon">📶</span>
+                <span class="status-text" id="bluetooth-status-text">Checking connection...</span>
+            </div>
+            <button class="test-btn" onclick="testBluetoothAudio()" id="test-audio-btn">🔊 Test Audio</button>
+        </div>
+
+        <!-- Device Scanner -->
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button class="scan-btn" onclick="scanBluetoothDevices()" id="scan-btn">
+                🔍 Scan for Speakers
+            </button>
+        </div>
+
+        <!-- Device List -->
+        <div class="device-list" id="device-list">
+            <div class="loading">No devices found. Click "Scan for Speakers" to search.</div>
+        </div>
+
+        <!-- Volume Control -->
+        <div class="volume-control">
+            <span>🔉</span>
+            <input type="range" class="volume-slider" min="0" max="100" value="70" 
+                   onchange="setBluetoothVolume(this.value)" id="volume-slider">
+            <div class="volume-display" id="volume-display">70%</div>
+            <span>🔊</span>
+        </div>
+    </div>
+HTML_EOF
+
+# Insert the Bluetooth panel before the emergency stop button
+sed -i '/<button class="emergency-stop"/i\
+' templates/index.html
+
+# Read the bluetooth panel content and insert it
+sed -i '/<button class="emergency-stop"/e cat /tmp/bluetooth_panel.html' templates/index.html
 
 # Add Bluetooth CSS styles
 sed -i '/<\/style>/i\
+        /* Bluetooth Audio Control Styles */\
         .bluetooth-panel {\
             background: rgba(255, 255, 255, 0.1);\
             backdrop-filter: blur(10px);\
@@ -1008,5 +1114,327 @@ sed -i '/<\/style>/i\
 \
         .status-text {\
             font-weight: bold;\
-        }\
-\
+        }' templates/index.html
+
+# Add Bluetooth JavaScript functions
+cat > /tmp/bluetooth_js.js << 'JS_EOF'
+        // Bluetooth control functions
+        let bluetoothDevices = [];
+        let currentVolume = 70;
+        let isScanning = false;
+
+        // Initialize Bluetooth interface
+        function initializeBluetoothInterface() {
+            updateBluetoothStatus();
+            setInterval(updateBluetoothStatus, 30000);
+        }
+
+        // Update Bluetooth connection status
+        function updateBluetoothStatus() {
+            fetch('/api/bluetooth/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusElement = document.getElementById('bluetooth-status');
+                    const statusText = document.getElementById('bluetooth-status-text');
+                    
+                    if (data.success && data.status.is_connected) {
+                        statusElement.className = 'bluetooth-status bluetooth-connected';
+                        statusText.textContent = 'Connected to speaker';
+                        if (data.status.default_speaker) {
+                            statusText.textContent += ` (${data.status.default_speaker.substring(0, 8)}...)`;
+                        }
+                    } else {
+                        statusElement.className = 'bluetooth-status bluetooth-disconnected';
+                        statusText.textContent = 'No Bluetooth speaker connected';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking Bluetooth status:', error);
+                });
+        }
+
+        // Scan for Bluetooth devices
+        function scanBluetoothDevices() {
+            if (isScanning) return;
+            
+            isScanning = true;
+            const scanBtn = document.getElementById('scan-btn');
+            const deviceList = document.getElementById('device-list');
+            
+            scanBtn.disabled = true;
+            scanBtn.textContent = '🔍 Scanning...';
+            deviceList.innerHTML = '<div class="loading">Scanning for Bluetooth devices... This may take up to 15 seconds.</div>';
+            
+            fetch('/api/bluetooth/scan', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        bluetoothDevices = data.devices;
+                        displayBluetoothDevices(data.devices);
+                        addLogEntry(`Found ${data.devices.length} Bluetooth device(s)`);
+                    } else {
+                        deviceList.innerHTML = '<div class="loading">Failed to scan for devices. Check Bluetooth is enabled.</div>';
+                        addLogEntry('Bluetooth scan failed: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Bluetooth scan error:', error);
+                    deviceList.innerHTML = '<div class="loading">Network error during scan.</div>';
+                    addLogEntry('Bluetooth scan network error', 'error');
+                })
+                .finally(() => {
+                    isScanning = false;
+                    scanBtn.disabled = false;
+                    scanBtn.textContent = '🔍 Scan for Speakers';
+                });
+        }
+
+        // Display found Bluetooth devices
+        function displayBluetoothDevices(devices) {
+            const deviceList = document.getElementById('device-list');
+            
+            if (devices.length === 0) {
+                deviceList.innerHTML = '<div class="loading">No Bluetooth devices found. Make sure your speaker is in pairing mode.</div>';
+                return;
+            }
+            
+            deviceList.innerHTML = '';
+            
+            devices.forEach(device => {
+                const deviceItem = document.createElement('div');
+                deviceItem.className = 'device-item';
+                
+                deviceItem.innerHTML = `
+                    <div class="device-info">
+                        <div class="device-name">${device.name || 'Unknown Device'}</div>
+                        <div class="device-mac">${device.mac}</div>
+                    </div>
+                    <div class="device-actions">
+                        <button class="connect-btn" onclick="connectBluetoothDevice('${device.mac}')">
+                            Connect
+                        </button>
+                    </div>
+                `;
+                
+                deviceList.appendChild(deviceItem);
+            });
+        }
+
+        // Connect to Bluetooth device
+        function connectBluetoothDevice(macAddress) {
+            const connectBtn = event.target;
+            
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'Connecting...';
+            
+            fetch('/api/bluetooth/connect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mac_address: macAddress })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        connectBtn.className = 'disconnect-btn';
+                        connectBtn.textContent = 'Disconnect';
+                        connectBtn.onclick = () => disconnectBluetoothDevice(macAddress);
+                        
+                        addLogEntry(`Connected to Bluetooth speaker: ${macAddress}`);
+                        updateBluetoothStatus();
+                        
+                        // Auto-test audio after connection
+                        setTimeout(() => testBluetoothAudio(), 2000);
+                    } else {
+                        connectBtn.disabled = false;
+                        connectBtn.textContent = 'Connect';
+                        addLogEntry(`Failed to connect to ${macAddress}: ${data.message}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Connection error:', error);
+                    connectBtn.disabled = false;
+                    connectBtn.textContent = 'Connect';
+                    addLogEntry(`Network error connecting to ${macAddress}`, 'error');
+                });
+        }
+
+        // Disconnect from Bluetooth device
+        function disconnectBluetoothDevice(macAddress) {
+            const disconnectBtn = event.target;
+            
+            disconnectBtn.disabled = true;
+            disconnectBtn.textContent = 'Disconnecting...';
+            
+            fetch('/api/bluetooth/disconnect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mac_address: macAddress })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        disconnectBtn.className = 'connect-btn';
+                        disconnectBtn.textContent = 'Connect';
+                        disconnectBtn.onclick = () => connectBluetoothDevice(macAddress);
+                        
+                        addLogEntry(`Disconnected from Bluetooth speaker: ${macAddress}`);
+                        updateBluetoothStatus();
+                    } else {
+                        addLogEntry(`Failed to disconnect from ${macAddress}: ${data.message}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Disconnection error:', error);
+                    addLogEntry(`Network error disconnecting from ${macAddress}`, 'error');
+                })
+                .finally(() => {
+                    disconnectBtn.disabled = false;
+                });
+        }
+
+        // Test Bluetooth audio
+        function testBluetoothAudio() {
+            const testBtn = document.getElementById('test-audio-btn');
+            
+            testBtn.disabled = true;
+            testBtn.textContent = '🔊 Testing...';
+            
+            fetch('/api/bluetooth/test', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addLogEntry('Bluetooth audio test successful');
+                    } else {
+                        addLogEntry('Bluetooth audio test failed: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Audio test error:', error);
+                    addLogEntry('Audio test network error', 'error');
+                })
+                .finally(() => {
+                    testBtn.disabled = false;
+                    testBtn.textContent = '🔊 Test Audio';
+                });
+        }
+
+        // Set Bluetooth volume
+        function setBluetoothVolume(volume) {
+            currentVolume = volume;
+            document.getElementById('volume-display').textContent = volume + '%';
+            
+            fetch('/api/bluetooth/volume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ volume: parseFloat(volume) / 100 })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        addLogEntry('Failed to set volume: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Volume control error:', error);
+                });
+        }
+JS_EOF
+
+# Insert the JavaScript before the closing script tag
+sed -i '/<\/script>/e cat /tmp/bluetooth_js.js' templates/index.html
+
+# Add the initialization call
+sed -i '/document.addEventListener("DOMContentLoaded", function() {/a\
+            initializeBluetoothInterface();' templates/index.html
+
+# Clean up temporary files
+rm -f /tmp/bluetooth_panel.html /tmp/bluetooth_js.js
+
+echo "✓ Bluetooth web interface added to index.html"
+
+echo ""
+echo "================================================"
+echo "Updating requirements.txt..."
+echo "================================================"
+
+# Add numpy to requirements if not present
+if ! grep -q "numpy" requirements.txt; then
+    echo "numpy==1.24.3" >> requirements.txt
+    echo "✓ Added numpy to requirements.txt"
+fi
+
+echo ""
+echo "================================================"
+echo "Installing Python packages..."
+echo "================================================"
+
+# Activate virtual environment and install new packages
+source walle-env/bin/activate
+pip install --upgrade pip
+pip install numpy==1.24.3
+
+echo "✓ Python packages installed"
+
+echo ""
+echo "================================================"
+echo "Starting Wall-E service..."
+echo "================================================"
+
+# Restart PulseAudio to ensure Bluetooth modules are loaded
+pulseaudio -k
+pulseaudio --start
+
+# Start Wall-E service
+sudo systemctl start walle-control.service
+
+# Wait for startup
+sleep 5
+
+# Check service status
+echo ""
+echo "=== Wall-E Service Status ==="
+sudo systemctl status walle-control.service --no-pager -l
+
+echo ""
+echo "================================================"
+echo "Bluetooth Integration Complete! 🎉"
+echo "================================================"
+
+# Get IP address
+IP_ADDRESS=$(hostname -I | awk '{print $1}')
+
+echo ""
+echo "✅ Bluetooth audio system has been successfully integrated into Wall-E!"
+echo ""
+echo "What's been added:"
+echo "  ✓ Enhanced audio system with Bluetooth support"
+echo "  ✓ Bluetooth management API endpoints"
+echo "  ✓ Web interface for Bluetooth control"
+echo "  ✓ Auto-reconnection functionality"
+echo "  ✓ Volume control and audio testing"
+echo ""
+echo "How to connect a Bluetooth speaker:"
+echo ""
+echo "Option 1 - Use the Web Interface:"
+echo "  1. Go to http://wall-e.local:5000 or http://$IP_ADDRESS:5000"
+echo "  2. Look for the '🔊 Bluetooth Audio Control' panel"
+echo "  3. Click 'Scan for Speakers'"
+echo "  4. Connect to your speaker from the list"
+echo ""
+echo "Option 2 - Use the Setup Script:"
+echo "  1. Put your Bluetooth speaker in pairing mode"
+echo "  2. Run: ./setup_bluetooth_speaker.sh"
+echo "  3. Follow the prompts"
+echo ""
+echo "Useful commands:"
+echo "  Restart Wall-E:   sudo systemctl restart walle-control.service"
+echo "  Check logs:       sudo journalctl -u walle-control.service -f"
+echo "  Test Bluetooth:   ./setup_bluetooth_speaker.sh"
+echo ""
+echo "Your Wall-E now has professional-quality audio through Bluetooth! 🤖🔊"
