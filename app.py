@@ -114,7 +114,7 @@ def check_camera_connection():
         return False
 
     try:
-        response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=3)
+        response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=10)
         return response.status_code == 200
     except:
         return False
