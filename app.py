@@ -21,7 +21,7 @@ from threading import Thread
 
 ESP32_CAM_IP = None  # Will be auto-discovered
 ESP32_CAM_PORT = 80
-CAMERA_SCAN_RANGE = "192.168.1"  # Adjust to your network range
+CAMERA_SCAN_RANGE = "192.168.50"  # Adjust to your network range
 
 # Wall-E modules
 try:
