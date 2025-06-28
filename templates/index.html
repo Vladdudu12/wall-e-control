@@ -408,6 +408,228 @@
     background: #9C27B0;
     cursor: pointer;
 }
+
+        /* Detection System Styles */
+.detection-panel {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 25px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 20px;
+}
+
+.detection-status {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.detection-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.detection-item.detected {
+    background: rgba(76, 175, 80, 0.2);
+    border: 1px solid #4CAF50;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+}
+
+.detection-item.not-detected {
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.detection-icon {
+    font-size: 1.5em;
+    min-width: 30px;
+}
+
+.detection-label {
+    font-weight: bold;
+    min-width: 80px;
+}
+
+.detection-value {
+    font-weight: bold;
+    color: #FFD700;
+}
+
+.detection-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.detection-btn {
+    background: linear-gradient(45deg, #9C27B0, #7B1FA2);
+    border: none;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    flex: 1;
+}
+
+.detection-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(156, 39, 176, 0.3);
+}
+
+.detection-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.manual-tests {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+.manual-test-label {
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #FFD700;
+}
+
+.test-btn {
+    background: linear-gradient(45deg, #FF9800, #F57C00);
+    border: none;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    margin: 5px;
+    transition: all 0.3s ease;
+}
+
+.test-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(255, 152, 0, 0.3);
+}
+
+.detection-config {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+.config-title {
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #FFD700;
+}
+
+.config-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.config-item label {
+    min-width: 120px;
+    font-size: 0.9em;
+}
+
+.config-slider {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #ddd;
+    outline: none;
+}
+
+.config-value {
+    min-width: 30px;
+    font-weight: bold;
+    color: #FFD700;
+}
+
+.detection-events {
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.events-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #FFD700;
+}
+
+.events-list {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    padding: 10px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.event-item {
+    font-size: 0.9em;
+    margin-bottom: 5px;
+    padding: 5px;
+    border-left: 3px solid #4CAF50;
+    padding-left: 10px;
+    font-family: 'Courier New', monospace;
+}
+
+.event-item.detection-event {
+    border-left-color: #2196F3;
+}
+
+.event-item.wave-event {
+    border-left-color: #FF9800;
+}
+
+.event-item.error-event {
+    border-left-color: #f44336;
+    color: #ffcccb;
+}
+
+/* Animation for detected states */
+@keyframes pulse-detection {
+    0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+.detection-item.detected {
+    animation: pulse-detection 2s infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .detection-status {
+        grid-template-columns: 1fr;
+    }
+
+    .detection-controls {
+        flex-direction: column;
+    }
+
+    .config-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}
     </style>
 </head>
 <body>
@@ -599,7 +821,84 @@
     </div>
 </div>
 </div>
+ <div class="control-panel detection-panel">
+        <div class="panel-title">🤖 AI Detection System</div>
 
+        <!-- Detection Status -->
+        <div class="detection-status" id="detection-status">
+            <div class="detection-item">
+                <span class="detection-icon">👤</span>
+                <span class="detection-label">Person:</span>
+                <span class="detection-value" id="person-status">Unknown</span>
+            </div>
+            <div class="detection-item">
+                <span class="detection-icon">👋</span>
+                <span class="detection-label">Wave:</span>
+                <span class="detection-value" id="wave-status">Unknown</span>
+            </div>
+            <div class="detection-item">
+                <span class="detection-icon">🔍</span>
+                <span class="detection-label">System:</span>
+                <span class="detection-value" id="system-status">Checking...</span>
+            </div>
+        </div>
+
+        <!-- Detection Controls -->
+        <div class="detection-controls">
+            <button class="control-btn detection-btn" onclick="testDetectionSystem()" id="test-detection-btn">
+                🧪 Test Detection
+            </button>
+            <button class="control-btn detection-btn" onclick="toggleDetection()" id="toggle-detection-btn">
+                🔄 Toggle Detection
+            </button>
+        </div>
+
+        <!-- Manual Test Buttons -->
+        <div class="manual-tests">
+            <div class="manual-test-label">Manual Tests:</div>
+            <button class="test-btn" onclick="manualWaveTest()">
+                👋 Test Wave Response
+            </button>
+            <button class="test-btn" onclick="manualPersonTest()">
+                👤 Test Person Response
+            </button>
+        </div>
+
+        <!-- Detection Configuration -->
+        <div class="detection-config" id="detection-config">
+            <div class="config-title">⚙️ Detection Settings</div>
+
+            <div class="config-item">
+                <label>Wave Sensitivity:</label>
+                <input type="range" class="config-slider" min="10" max="50" value="30"
+                       onchange="updateDetectionConfig('motion_threshold', this.value)"
+                       id="sensitivity-slider">
+                <span class="config-value" id="sensitivity-value">30</span>
+            </div>
+
+            <div class="config-item">
+                <label>Detection Frames:</label>
+                <input type="range" class="config-slider" min="3" max="10" value="5"
+                       onchange="updateDetectionConfig('wave_frames', this.value)"
+                       id="frames-slider">
+                <span class="config-value" id="frames-value">5</span>
+            </div>
+
+            <div class="config-item">
+                <label>Enable Debug:</label>
+                <input type="checkbox" onchange="updateDetectionConfig('debug_mode', this.checked)"
+                       id="debug-checkbox">
+            </div>
+        </div>
+
+        <!-- Recent Detection Events -->
+        <div class="detection-events" id="detection-events">
+            <div class="events-title">📋 Recent Detection Events</div>
+            <div class="events-list" id="events-list">
+                <div class="event-item">System initialized</div>
+            </div>
+        </div>
+    </div>
 
         <button class="emergency-stop" onclick="emergencyStop()">
             🚨 EMERGENCY STOP 🚨
@@ -1214,6 +1513,433 @@ document.addEventListener("DOMContentLoaded", function() {
     addLogEntry('Wall-E Control Interface Ready');
 });
 </script>
+
+<script>
+// Detection System JavaScript
+
+// Detection status tracking
+let detectionSystemOnline = false;
+let currentPersonDetected = false;
+let currentWaveDetected = false;
+let detectionEnabled = true;
+
+// Initialize detection interface
+function initializeDetectionInterface() {
+    updateDetectionStatus();
+    setInterval(updateDetectionStatus, 5000); // Check every 5 seconds
+}
+
+// Update detection system status
+function updateDetectionStatus() {
+    fetch('/api/detection/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                detectionSystemOnline = data.detection_status.camera_connected;
+                currentPersonDetected = data.detection_status.person_detected || false;
+                currentWaveDetected = data.detection_status.wave_detected || false;
+                detectionEnabled = data.detection_status.detection_enabled || false;
+
+                // Update UI elements
+                updateDetectionUI();
+
+                addLogEntry(`Detection status updated - Person: ${currentPersonDetected ? 'YES' : 'NO'}, Wave: ${currentWaveDetected ? 'YES' : 'NO'}`);
+            } else {
+                detectionSystemOnline = false;
+                updateDetectionUI();
+                addLogEntry('Failed to get detection status', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Detection status error:', error);
+            detectionSystemOnline = false;
+            updateDetectionUI();
+        });
+}
+
+// Update detection UI elements
+function updateDetectionUI() {
+    // Update person detection status
+    const personStatus = document.getElementById('person-status');
+    const personItem = personStatus.closest('.detection-item');
+    if (currentPersonDetected) {
+        personStatus.textContent = 'DETECTED';
+        personItem.className = 'detection-item detected';
+    } else {
+        personStatus.textContent = 'Not Detected';
+        personItem.className = 'detection-item not-detected';
+    }
+
+    // Update wave detection status
+    const waveStatus = document.getElementById('wave-status');
+    const waveItem = waveStatus.closest('.detection-item');
+    if (currentWaveDetected) {
+        waveStatus.textContent = 'DETECTED';
+        waveItem.className = 'detection-item detected';
+    } else {
+        waveStatus.textContent = 'Not Detected';
+        waveItem.className = 'detection-item not-detected';
+    }
+
+    // Update system status
+    const systemStatus = document.getElementById('system-status');
+    const systemItem = systemStatus.closest('.detection-item');
+    if (detectionSystemOnline) {
+        systemStatus.textContent = detectionEnabled ? 'Online & Active' : 'Online (Disabled)';
+        systemItem.className = 'detection-item detected';
+    } else {
+        systemStatus.textContent = 'Offline';
+        systemItem.className = 'detection-item not-detected';
+    }
+
+    // Update button states
+    const testBtn = document.getElementById('test-detection-btn');
+    const toggleBtn = document.getElementById('toggle-detection-btn');
+
+    testBtn.disabled = !detectionSystemOnline;
+    toggleBtn.disabled = !detectionSystemOnline;
+    toggleBtn.textContent = detectionEnabled ? '⏸️ Disable Detection' : '▶️ Enable Detection';
+}
+
+// Test detection system
+function testDetectionSystem() {
+    const testBtn = document.getElementById('test-detection-btn');
+
+    testBtn.disabled = true;
+    testBtn.textContent = '🧪 Testing...';
+
+    fetch('/api/detection/test', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const results = data.test_results;
+
+                // Show test results
+                let resultMessage = 'Detection Test Results:\n';
+                resultMessage += `Camera: ${results.camera_reachable ? '✅' : '❌'}\n`;
+                resultMessage += `Detection API: ${results.detection_endpoint_working ? '✅' : '❌'}\n`;
+                resultMessage += `Wall-E Response: ${results.walle_response_working ? '✅' : '❌'}\n`;
+                resultMessage += `Audio System: ${results.audio_working ? '✅' : '❌'}\n`;
+                resultMessage += `Servo Control: ${results.servo_working ? '✅' : '❌'}`;
+
+                addDetectionEvent('System Test', resultMessage);
+
+                // Count successful tests
+                const successCount = Object.values(results).filter(Boolean).length;
+                const totalTests = Object.keys(results).length;
+
+                if (successCount === totalTests) {
+                    addLogEntry('🎉 All detection systems working perfectly!');
+                } else {
+                    addLogEntry(`⚠️ Detection test: ${successCount}/${totalTests} systems working`, 'warning');
+                }
+            } else {
+                addLogEntry('Detection test failed: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Detection test error:', error);
+            addLogEntry('Detection test network error', 'error');
+        })
+        .finally(() => {
+            testBtn.disabled = false;
+            testBtn.textContent = '🧪 Test Detection';
+        });
+}
+
+// Toggle detection on/off
+function toggleDetection() {
+    const newState = !detectionEnabled;
+
+    fetch('/api/detection/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            detection_enabled: newState
+        })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                detectionEnabled = newState;
+                updateDetectionUI();
+                addLogEntry(`Detection ${newState ? 'enabled' : 'disabled'}`);
+            } else {
+                addLogEntry('Failed to toggle detection: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Toggle detection error:', error);
+            addLogEntry('Toggle detection network error', 'error');
+        });
+}
+
+// Manual wave test
+function manualWaveTest() {
+    socket.emit('detection_event', {
+        event: 'manual_wave_test'
+    });
+
+    addDetectionEvent('Manual Test', 'Wave response test triggered');
+    addLogEntry('👋 Manual wave test executed');
+}
+
+// Manual person test
+function manualPersonTest() {
+    socket.emit('detection_event', {
+        event: 'manual_person_test'
+    });
+
+    addDetectionEvent('Manual Test', 'Person detection test triggered');
+    addLogEntry('👤 Manual person test executed');
+}
+
+// Update detection configuration
+function updateDetectionConfig(parameter, value) {
+    // Update UI display
+    if (parameter === 'motion_threshold') {
+        document.getElementById('sensitivity-value').textContent = value;
+    } else if (parameter === 'wave_frames') {
+        document.getElementById('frames-value').textContent = value;
+    }
+
+    // Send to camera
+    const config = {};
+    config[parameter] = parameter === 'debug_mode' ? value : parseInt(value);
+
+    fetch('/api/detection/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addLogEntry(`Updated ${parameter} to ${value}`);
+            } else {
+                addLogEntry(`Failed to update ${parameter}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Config update error:', error);
+        });
+}
+
+// Add detection event to the events list
+function addDetectionEvent(eventType, details) {
+    const eventsList = document.getElementById('events-list');
+    const eventItem = document.createElement('div');
+
+    const timestamp = new Date().toLocaleTimeString();
+    eventItem.className = 'event-item detection-event';
+    eventItem.textContent = `[${timestamp}] ${eventType}: ${details}`;
+
+    // Add to top of list
+    eventsList.insertBefore(eventItem, eventsList.firstChild);
+
+    // Keep only last 10 events
+    while (eventsList.children.length > 10) {
+        eventsList.removeChild(eventsList.lastChild);
+    }
+
+    // Auto-scroll to top
+    eventsList.scrollTop = 0;
+}
+
+// Handle real-time detection events from server
+socket.on('detection_event', function(data) {
+    const event = data.event;
+    const details = data.details;
+    const response = data.response;
+
+    console.log('Detection event received:', data);
+
+    // Add to events list
+    addDetectionEvent(event, details);
+
+    // Update status based on event
+    if (event === 'person_detected') {
+        currentPersonDetected = true;
+        addLogEntry('👤 Person detected! Wall-E is responding...');
+    } else if (event === 'wave_detected') {
+        currentWaveDetected = true;
+        addLogEntry('👋 Wave detected! Wall-E is waving back!');
+
+        // Create visual feedback for wave
+        createWaveAnimation();
+    } else if (event === 'person_left') {
+        currentPersonDetected = false;
+        addLogEntry('👤 Person left view. Wall-E returning to idle.');
+    }
+
+    // Update UI
+    updateDetectionUI();
+
+    // Show response details if available
+    if (response && response.action) {
+        addLogEntry(`🤖 Wall-E action: ${response.action}`);
+
+        if (response.sounds) {
+            addLogEntry(`🔊 Playing sounds: ${response.sounds.join(', ')}`);
+        }
+
+        if (response.message) {
+            addLogEntry(response.message);
+        }
+    }
+});
+
+// Handle detection system status updates
+socket.on('detection_system_status', function(data) {
+    detectionSystemOnline = data.online;
+
+    if (data.online) {
+        if (data.detection_enabled !== undefined) {
+            detectionEnabled = data.detection_enabled;
+        }
+        if (data.person_detected !== undefined) {
+            currentPersonDetected = data.person_detected;
+        }
+        if (data.wave_detected !== undefined) {
+            currentWaveDetected = data.wave_detected;
+        }
+    }
+
+    updateDetectionUI();
+
+    if (!data.online && data.error) {
+        addLogEntry(`Detection system offline: ${data.error}`, 'error');
+    }
+});
+
+// Handle detection test responses
+socket.on('detection_response', function(data) {
+    if (data.test) {
+        addLogEntry(`✅ ${data.message}`);
+        addDetectionEvent('Test Response', data.response.action || 'Test completed');
+    }
+});
+
+// Create wave animation effect
+function createWaveAnimation() {
+    // Create a temporary wave emoji that floats across the screen
+    const waveEmoji = document.createElement('div');
+    waveEmoji.textContent = '👋';
+    waveEmoji.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: -50px;
+        font-size: 3em;
+        z-index: 1000;
+        pointer-events: none;
+        animation: waveFloat 3s ease-out forwards;
+    `;
+
+    // Add wave animation CSS if not already added
+    if (!document.getElementById('wave-animation-styles')) {
+        const style = document.createElement('style');
+        style.id = 'wave-animation-styles';
+        style.textContent = `
+            @keyframes waveFloat {
+                0% {
+                    left: -50px;
+                    transform: translateY(0) rotate(0deg);
+                    opacity: 1;
+                }
+                50% {
+                    transform: translateY(-20px) rotate(15deg);
+                }
+                100% {
+                    left: 100vw;
+                    transform: translateY(0) rotate(30deg);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    document.body.appendChild(waveEmoji);
+
+    // Remove after animation
+    setTimeout(() => {
+        if (waveEmoji.parentNode) {
+            waveEmoji.parentNode.removeChild(waveEmoji);
+        }
+    }, 3000);
+}
+
+// Enhance the existing log entry function to handle detection events
+function addLogEntryEnhanced(message, type = 'info') {
+    // Call existing addLogEntry function
+    addLogEntry(message, type);
+
+    // Also add to detection events if it's detection-related
+    if (message.includes('detection') || message.includes('wave') || message.includes('person')) {
+        const eventType = message.includes('wave') ? 'Wave Event' :
+                         message.includes('person') ? 'Person Event' : 'Detection Event';
+        addDetectionEvent(eventType, message);
+    }
+}
+
+// Initialize detection interface when page loads
+document.addEventListener("DOMContentLoaded", function() {
+    initializeBluetoothInterface();
+    initializeCameraInterface();
+    initializeDetectionInterface(); // Add this line
+    addLogEntry('Wall-E Control Interface Ready');
+    addDetectionEvent('System', 'Detection interface initialized');
+});
+</script>
+
+<!-- Usage Instructions in Comments -->
+<!--
+WALL-E DETECTION SYSTEM USAGE:
+
+1. SETUP:
+   - Upload the enhanced ESP32-CAM code to your camera
+   - Ensure Wall-E Flask app has the detection integration code
+   - Connect ESP32-CAM to Wall-E-Robot WiFi network
+
+2. DETECTION FEATURES:
+   - Person Detection: Automatically detects when someone enters camera view
+   - Wave Detection: Recognizes waving gestures and makes Wall-E wave back
+   - Real-time Status: Live updates of detection states
+   - Configuration: Adjust sensitivity and detection parameters
+
+3. WEB INTERFACE:
+   - Detection Panel: Shows current detection status with visual indicators
+   - Manual Tests: Test person and wave responses without actual detection
+   - Configuration: Adjust detection sensitivity and frame analysis
+   - Event Log: Real-time log of all detection events
+
+4. WALL-E RESPONSES:
+   - Person Detected: Wall-E plays curious sound and moves head to look
+   - Wave Detected: Wall-E waves back with arm servos and plays happy sounds
+   - Person Left: Wall-E returns to neutral position with sad sound
+
+5. TECHNICAL DETAILS:
+   - Uses motion analysis for wave detection
+   - Configurable sensitivity and frame thresholds
+   - Rate limiting to prevent spam detections
+   - Integration with existing Wall-E control system
+
+6. TROUBLESHOOTING:
+   - Use "Test Detection" button to verify all systems
+   - Check detection events log for detailed information
+   - Adjust sensitivity if detection is too sensitive/insensitive
+   - Verify camera connection in main camera panel
+
+7. FUTURE ENHANCEMENTS:
+   - Replace simple detection with ESP-Detection library models
+   - Train custom gestures using Edge Impulse
+   - Add face recognition for personalized responses
+   - Implement object detection for interactive behaviors
+-->
 
 </body>
 </html>

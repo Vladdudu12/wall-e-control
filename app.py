@@ -669,31 +669,319 @@ def ap_status():
         })
 
 
-@app.route('/api/camera/status')
-def camera_status():
-    """Enhanced camera status with detailed diagnostics"""
+@app.route('/api/camera/detection', methods=['POST'])
+def handle_camera_detection():
+    """Handle detection events from ESP32-CAM"""
     try:
-        print("📷 Camera status requested...")
+        data = request.get_json()
+        event = data.get('event')
+        details = data.get('details', '')
+        timestamp = data.get('timestamp', time.time())
+        camera_ip = data.get('camera_ip', 'unknown')
 
+        print(f"🔍 Detection Event: {event} - {details}")
+
+        # Update Wall-E state based on detection
+        detection_response = process_detection_event(event, details)
+
+        # Broadcast detection event to web clients
+        socketio.emit('detection_event', {
+            'event': event,
+            'details': details,
+            'timestamp': timestamp,
+            'camera_ip': camera_ip,
+            'response': detection_response
+        })
+
+        return jsonify({
+            'success': True,
+            'message': f'Detection event processed: {event}',
+            'response': detection_response
+        })
+
+    except Exception as e:
+        print(f"❌ Detection event error: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+def process_detection_event(event, details):
+    """Process detection events and trigger Wall-E responses"""
+    global walle_state
+
+    response = {}
+
+    if event == 'person_detected':
+        print("👤 Person detected - Wall-E responding...")
+        walle_state['mode'] = 'person_detected'
+
+        # Play greeting sound
+        if audio:
+            audio.play_wall_e_emotion('curious')
+
+        # Move head to look at person
+        if arduino:
+            arduino.set_servo('head_pan', 90)  # Center position
+            arduino.set_servo('head_tilt', 70)  # Look slightly up
+
+        response = {
+            'action': 'greeting_ready',
+            'sounds': ['curious'],
+            'servo_moves': {'head_pan': 90, 'head_tilt': 70}
+        }
+
+    elif event == 'wave_detected':
+        print("👋 Wave detected - Wall-E waving back!")
+        walle_state['mode'] = 'greeting'
+
+        # Play happy greeting sound
+        if audio:
+            audio.play_wall_e_emotion('happy')
+            time.sleep(0.5)
+            audio.play_wall_e_emotion('greeting')
+
+        # Wave back sequence
+        if arduino:
+            # Wave with right arm
+            for i in range(3):  # Wave 3 times
+                arduino.set_servo('right_arm', 150)  # Arm up
+                time.sleep(0.3)
+                arduino.set_servo('right_arm', 60)  # Arm down
+                time.sleep(0.3)
+            arduino.set_servo('right_arm', 90)  # Return to center
+
+            # Friendly head movement
+            arduino.set_servo('head_pan', 120)  # Look left
+            time.sleep(0.5)
+            arduino.set_servo('head_pan', 60)  # Look right
+            time.sleep(0.5)
+            arduino.set_servo('head_pan', 90)  # Center
+
+        response = {
+            'action': 'wave_back',
+            'sounds': ['happy', 'greeting'],
+            'servo_sequence': 'friendly_wave',
+            'message': 'Wall-E waved back!'
+        }
+
+    elif event == 'person_left':
+        print("👤 Person left - Wall-E returning to idle")
+        walle_state['mode'] = 'idle'
+
+        # Play sad/goodbye sound
+        if audio:
+            audio.play_wall_e_emotion('worried')
+
+        # Return to neutral position
+        if arduino:
+            arduino.set_servo('head_pan', 90)
+            arduino.set_servo('head_tilt', 90)
+            arduino.set_servo('left_arm', 90)
+            arduino.set_servo('right_arm', 90)
+
+        response = {
+            'action': 'return_idle',
+            'sounds': ['worried'],
+            'servo_moves': 'neutral_position'
+        }
+
+    return response
+
+
+@app.route('/api/detection/status')
+def get_detection_status():
+    """Get current detection system status"""
+    try:
+        detection_status = {
+            'camera_connected': ESP32_CAM_IP is not None,
+            'camera_ip': ESP32_CAM_IP,
+            'detection_enabled': True,
+            'last_detection': walle_state.get('last_detection', None),
+            'current_mode': walle_state.get('mode', 'idle'),
+            'available_responses': [
+                'greeting_ready',
+                'wave_back',
+                'return_idle'
+            ]
+        }
+
+        # Try to get detection status from camera
+        if ESP32_CAM_IP:
+            try:
+                response = requests.get(f"http://{ESP32_CAM_IP}/detection/status", timeout=5)
+                if response.status_code == 200:
+                    camera_detection_status = response.json()
+                    detection_status.update(camera_detection_status)
+                    detection_status['camera_detection_working'] = True
+                else:
+                    detection_status['camera_detection_working'] = False
+            except:
+                detection_status['camera_detection_working'] = False
+
+        return jsonify({
+            'success': True,
+            'detection_status': detection_status
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/detection/config', methods=['POST'])
+def configure_detection():
+    """Configure detection parameters on ESP32-CAM"""
+    try:
         if not ESP32_CAM_IP:
-            print("No camera IP set, attempting discovery...")
+            return jsonify({
+                'success': False,
+                'message': 'Camera not connected'
+            }), 400
+
+        # Forward configuration to camera
+        config_data = request.get_json()
+
+        response = requests.post(
+            f"http://{ESP32_CAM_IP}/detection/config",
+            json=config_data,
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return jsonify({
+                'success': True,
+                'message': 'Detection configuration updated',
+                'camera_response': response.json()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to update camera configuration'
+            }), 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/detection/test', methods=['POST'])
+def test_detection_system():
+    """Test the detection system end-to-end"""
+    try:
+        test_results = {
+            'camera_reachable': False,
+            'detection_endpoint_working': False,
+            'walle_response_working': False,
+            'audio_working': False,
+            'servo_working': False
+        }
+
+        # Test camera reachability
+        if ESP32_CAM_IP:
+            try:
+                response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=5)
+                test_results['camera_reachable'] = response.status_code == 200
+            except:
+                pass
+
+        # Test detection endpoint
+        if test_results['camera_reachable']:
+            try:
+                response = requests.get(f"http://{ESP32_CAM_IP}/detection/status", timeout=5)
+                test_results['detection_endpoint_working'] = response.status_code == 200
+            except:
+                pass
+
+        # Test Wall-E response systems
+        try:
+            # Test audio
+            if audio:
+                audio.play_sound('beep')
+                test_results['audio_working'] = True
+        except:
+            pass
+
+        try:
+            # Test servo (small movement)
+            if arduino:
+                arduino.set_servo('head_pan', 95)
+                time.sleep(0.5)
+                arduino.set_servo('head_pan', 90)
+                test_results['servo_working'] = True
+        except:
+            pass
+
+        # Test Wall-E response processing
+        try:
+            test_response = process_detection_event('person_detected', 'Test detection')
+            test_results['walle_response_working'] = 'action' in test_response
+        except:
+            pass
+
+        return jsonify({
+            'success': True,
+            'test_results': test_results,
+            'message': 'Detection system test completed'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+# WebSocket event for real-time detection updates
+@socketio.on('detection_event')
+def handle_detection_event(data):
+    """Handle real-time detection events from web clients"""
+    try:
+        event_type = data.get('event')
+
+        if event_type == 'manual_wave_test':
+            # Manual test of wave detection response
+            response = process_detection_event('wave_detected', 'Manual test wave')
+            emit('detection_response', {
+                'test': True,
+                'response': response,
+                'message': 'Manual wave test executed'
+            })
+
+        elif event_type == 'manual_person_test':
+            # Manual test of person detection response
+            response = process_detection_event('person_detected', 'Manual test person')
+            emit('detection_response', {
+                'test': True,
+                'response': response,
+                'message': 'Manual person detection test executed'
+            })
+
+    except Exception as e:
+        emit('error', {'message': f'Detection event error: {str(e)}'})
+
+
+# Enhanced camera status to include detection info
+def enhanced_camera_status():
+    """Enhanced camera status including detection capabilities"""
+    try:
+        if not ESP32_CAM_IP:
             discover_esp32_cam()
 
         if ESP32_CAM_IP and check_camera_connection():
             try:
-                # Get camera details with extended timeout
+                # Get basic camera status
                 response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=8)
                 cam_data = response.json()
 
-                print(f"✅ Camera connected at {ESP32_CAM_IP}")
-
-                # Test if capture endpoint is working
-                capture_test = False
-                try:
-                    test_response = requests.head(f"http://{ESP32_CAM_IP}/capture", timeout=3)
-                    capture_test = test_response.status_code == 200
-                except:
-                    capture_test = False
+                # Get detection status
+                detection_response = requests.get(f"http://{ESP32_CAM_IP}/detection/status", timeout=5)
+                detection_data = detection_response.json() if detection_response.status_code == 200 else {}
 
                 return jsonify({
                     'success': True,
@@ -701,38 +989,45 @@ def camera_status():
                     'ip': ESP32_CAM_IP,
                     'stream_url': f"http://{ESP32_CAM_IP}/stream",
                     'capture_url': f"http://{ESP32_CAM_IP}/capture",
-                    'test_url': f"http://{ESP32_CAM_IP}/test",
-                    'capture_endpoint_working': capture_test,
-                    'details': cam_data
+                    'detection_stream_url': f"http://{ESP32_CAM_IP}/stream",  # Same stream with detection
+                    'details': cam_data,
+                    'detection': detection_data,
+                    'version': cam_data.get('version', 'Unknown'),
+                    'detection_enabled': detection_data.get('detection_enabled', False),
+                    'person_detected': detection_data.get('person_detected', False),
+                    'wave_detected': detection_data.get('wave_detected', False)
                 })
 
             except Exception as e:
-                print(f"Error getting camera details: {e}")
                 return jsonify({
                     'success': True,
                     'connected': True,
                     'ip': ESP32_CAM_IP,
                     'stream_url': f"http://{ESP32_CAM_IP}/stream",
                     'capture_url': f"http://{ESP32_CAM_IP}/capture",
-                    'capture_endpoint_working': False,
-                    'details': {'error': str(e)}
+                    'detection_available': False,
+                    'detection_error': str(e)
                 })
         else:
-            print("❌ Camera not found or not responding")
             return jsonify({
                 'success': False,
                 'connected': False,
-                'message': 'ESP32-CAM not found or not responding on Wall-E network'
+                'message': 'ESP32-CAM with detection not found'
             })
 
     except Exception as e:
-        error_msg = str(e)
-        print(f"Camera status error: {error_msg}")
         return jsonify({
             'success': False,
             'connected': False,
-            'message': error_msg
+            'message': str(e)
         })
+
+
+# Update the existing camera status route
+@app.route('/api/camera/status')
+def camera_status():
+    """Enhanced camera status with detection info"""
+    return enhanced_camera_status()
 
 @app.route('/api/camera/discover', methods=['POST'])
 def discover_camera():
@@ -974,6 +1269,7 @@ def camera_debug():
             'message': str(e)
         })
 
+
 # Background monitoring thread
 def camera_monitor_thread():
     """Enhanced camera monitoring with better logging"""
@@ -1009,6 +1305,53 @@ def camera_monitor_thread():
 
         time.sleep(30)  # Check every 30 seconds
 
+# Background monitoring for detection events
+def detection_monitor_thread():
+    """Background thread to monitor detection system health"""
+    while True:
+        try:
+            if ESP32_CAM_IP:
+                # Check if detection system is responsive
+                response = requests.get(f"http://{ESP32_CAM_IP}/detection/status", timeout=5)
+
+                if response.status_code == 200:
+                    detection_data = response.json()
+
+                    # Broadcast detection status to web clients
+                    socketio.emit('detection_system_status', {
+                        'online': True,
+                        'detection_enabled': detection_data.get('detection_enabled', False),
+                        'person_detected': detection_data.get('person_detected', False),
+                        'wave_detected': detection_data.get('wave_detected', False),
+                        'memory_free': detection_data.get('memory', {}).get('free_heap', 0)
+                    })
+                else:
+                    socketio.emit('detection_system_status', {
+                        'online': False,
+                        'error': f'HTTP {response.status_code}'
+                    })
+            else:
+                socketio.emit('detection_system_status', {
+                    'online': False,
+                    'error': 'Camera not connected'
+                })
+
+        except Exception as e:
+            print(f"Detection monitor error: {e}")
+            socketio.emit('detection_system_status', {
+                'online': False,
+                'error': str(e)
+            })
+
+        time.sleep(10)  # Check every 10 seconds
+
+
+# Start detection monitoring thread when app starts
+def start_detection_monitoring():
+    """Start the detection monitoring background thread"""
+    detection_thread = threading.Thread(target=detection_monitor_thread, daemon=True)
+    detection_thread.start()
+    print("✅ Detection monitoring thread started")
 
 def process_command(command, params):
     """Process Wall-E commands"""
@@ -1227,6 +1570,7 @@ if __name__ == '__main__':
     # Initialize hardware
     initialize_hardware()
 
+    start_detection_monitoring()
     # Start background threads
     sensor_thread = threading.Thread(target=sensor_update_thread, daemon=True)
     sensor_thread.start()
