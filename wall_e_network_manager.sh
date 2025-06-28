@@ -144,7 +144,8 @@ switch_to_client_mode() {
     systemctl stop dnsmasq 2>/dev/null
     systemctl disable hostapd 2>/dev/null
     systemctl disable dnsmasq 2>/dev/null
-
+    # Restart NetworkManager
+    systemctl restart NetworkManager
     # Reset interface
     echo "Resetting network interface..."
     ip addr flush dev wlan0
@@ -196,7 +197,8 @@ switch_to_client_mode() {
         # Restart NetworkManager
         systemctl restart NetworkManager
     fi
-
+    # Restart NetworkManager
+    systemctl restart NetworkManager
     # Save state
     echo "client" > "$STATE_FILE"
 
