@@ -716,6 +716,7 @@ function updateCameraStatus() {
     fetch('/api/camera/status')
         .then(response => response.json())
         .then(data => {
+            console.log('Camera status:', data); // Add this for debugging
             const statusElement = document.getElementById('camera-status');
             const statusText = document.getElementById('camera-status-text');
             const streamImg = document.getElementById('camera-stream');
