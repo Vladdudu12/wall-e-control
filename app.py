@@ -697,7 +697,7 @@ def control_camera_led():
         data = request.get_json()
         state = data.get('state', 'off')  # on/off
 
-        response = requests.get(f"http://{ESP32_CAM_IP}/led?state={state}", timeout=3)
+        response = requests.get(f"http://{ESP32_CAM_IP}/led?state={state}", timeout=10)
 
         if response.status_code == 200:
             return jsonify({
@@ -730,7 +730,7 @@ def camera_settings():
 
         if request.method == 'GET':
             # Get current settings
-            response = requests.get(f"http://{ESP32_CAM_IP}/settings", timeout=3)
+            response = requests.get(f"http://{ESP32_CAM_IP}/settings", timeout=10)
 
             if response.status_code == 200:
                 settings = response.json()
