@@ -371,6 +371,43 @@
 .loading-text {
     animation: pulse 2s infinite;
 }
+
+        .resolution-btn {
+    padding: 8px 12px;
+    background: linear-gradient(45deg, #9C27B0, #7B1FA2);
+    border: none;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.resolution-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(156, 39, 176, 0.3);
+}
+
+.resolution-btn.active {
+    background: linear-gradient(45deg, #4CAF50, #45a049);
+}
+
+#quality-slider {
+    -webkit-appearance: none;
+    background: #ddd;
+    outline: none;
+}
+
+#quality-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #9C27B0;
+    cursor: pointer;
+}
     </style>
 </head>
 <body>
@@ -535,6 +572,32 @@
             <span id="camera-signal">--</span>
         </div>
     </div>
+
+            <div class="resolution-control" style="margin-top: 15px; padding: 15px; background: rgba(255, 255, 255, 0.05); border-radius: 8px;">
+    <div style="margin-bottom: 10px; font-weight: bold;">📐 Stream Quality:</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button onclick="setResolution('low')" class="resolution-btn">
+            📱 Low (320x240)
+        </button>
+        <button onclick="setResolution('medium')" class="resolution-btn">
+            📺 Medium (640x480)
+        </button>
+        <button onclick="setResolution('high')" class="resolution-btn">
+            🖥️ High (800x600)
+        </button>
+        <button onclick="setResolution('max')" class="resolution-btn">
+            🎬 Max (1024x768)
+        </button>
+    </div>
+
+    <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 0.9em;">Quality:</span>
+        <input type="range" id="quality-slider" min="10" max="25" value="15"
+               onchange="setQuality(this.value)"
+               style="flex: 1; height: 6px; border-radius: 3px;">
+        <span id="quality-display" style="font-size: 0.9em; color: #FFD700;">15</span>
+    </div>
+</div>
 </div>
 
 
@@ -699,6 +762,82 @@
     </script>
 
     <script>
+function setResolution(level) {
+    if (!cameraConnected || !cameraIP) {
+        addLogEntry('Camera not connected', 'error');
+        return;
+    }
+
+    // Resolution mappings
+    const resolutions = {
+        'low': { framesize: 3, name: 'QVGA (320x240)' },      // QVGA
+        'medium': { framesize: 6, name: 'VGA (640x480)' },    // VGA
+        'high': { framesize: 7, name: 'SVGA (800x600)' },     // SVGA
+        'max': { framesize: 8, name: 'XGA (1024x768)' }       // XGA
+    };
+
+    if (!resolutions[level]) {
+        addLogEntry('Invalid resolution level', 'error');
+        return;
+    }
+
+    const res = resolutions[level];
+
+    // Update button states
+    document.querySelectorAll('.resolution-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // Send resolution change command
+    fetch(`http://${cameraIP}/control?var=framesize&val=${res.framesize}`, {
+        method: 'GET',
+        mode: 'no-cors'  // Avoid CORS issues
+    })
+    .then(() => {
+        addLogEntry(`Resolution set to ${res.name}`);
+        // Refresh stream after resolution change
+        setTimeout(refreshStream, 1000);
+    })
+    .catch(error => {
+        addLogEntry(`Resolution change failed: ${error}`, 'error');
+    });
+}
+
+function setQuality(quality) {
+    document.getElementById('quality-display').textContent = quality;
+
+    if (!cameraConnected || !cameraIP) {
+        return;
+    }
+
+    // Send quality change command
+    fetch(`http://${cameraIP}/control?var=quality&val=${quality}`, {
+        method: 'GET',
+        mode: 'no-cors'
+    })
+    .then(() => {
+        addLogEntry(`Quality set to ${quality}`);
+    })
+    .catch(error => {
+        console.error('Quality change failed:', error);
+    });
+}
+
+// Set default resolution when camera connects
+function onCameraConnected() {
+    // Set medium resolution by default
+    setTimeout(() => {
+        setResolution('medium');
+    }, 2000);
+}
+
+// Update the existing updateCameraStatus function to call onCameraConnected
+// (Add this to the camera connected section)
+</script>
+
+
+    <script>
 // Camera control variables
 let cameraConnected = false;
 let cameraIP = null;
@@ -708,6 +847,7 @@ let ledState = false;
 // Initialize camera interface
 function initializeCameraInterface() {
     updateCameraStatus();
+    onCameraConnected();
     setInterval(updateCameraStatus, 15000); // Check every 15 seconds
 }
 
