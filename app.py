@@ -671,7 +671,7 @@ def ap_status():
 
 @app.route('/api/camera/status')
 def camera_status():
-    """Get camera connection status with enhanced discovery"""
+    """Enhanced camera status with detailed diagnostics"""
     try:
         print("📷 Camera status requested...")
 
@@ -681,11 +681,19 @@ def camera_status():
 
         if ESP32_CAM_IP and check_camera_connection():
             try:
-                # Get camera details
-                response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=5)
+                # Get camera details with extended timeout
+                response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=8)
                 cam_data = response.json()
 
                 print(f"✅ Camera connected at {ESP32_CAM_IP}")
+
+                # Test if capture endpoint is working
+                capture_test = False
+                try:
+                    test_response = requests.head(f"http://{ESP32_CAM_IP}/capture", timeout=3)
+                    capture_test = test_response.status_code == 200
+                except:
+                    capture_test = False
 
                 return jsonify({
                     'success': True,
@@ -693,18 +701,20 @@ def camera_status():
                     'ip': ESP32_CAM_IP,
                     'stream_url': f"http://{ESP32_CAM_IP}/stream",
                     'capture_url': f"http://{ESP32_CAM_IP}/capture",
+                    'test_url': f"http://{ESP32_CAM_IP}/test",
+                    'capture_endpoint_working': capture_test,
                     'details': cam_data
                 })
 
             except Exception as e:
                 print(f"Error getting camera details: {e}")
-                # Return basic connection info even if details fail
                 return jsonify({
                     'success': True,
                     'connected': True,
                     'ip': ESP32_CAM_IP,
                     'stream_url': f"http://{ESP32_CAM_IP}/stream",
                     'capture_url': f"http://{ESP32_CAM_IP}/capture",
+                    'capture_endpoint_working': False,
                     'details': {'error': str(e)}
                 })
         else:
@@ -723,7 +733,6 @@ def camera_status():
             'connected': False,
             'message': error_msg
         })
-
 
 @app.route('/api/camera/discover', methods=['POST'])
 def discover_camera():
@@ -752,7 +761,7 @@ def discover_camera():
 
 @app.route('/api/camera/capture', methods=['POST'])
 def capture_photo():
-    """Capture a photo from ESP32-CAM"""
+    """Enhanced photo capture with better error handling"""
     try:
         if not ESP32_CAM_IP:
             return jsonify({
@@ -760,40 +769,91 @@ def capture_photo():
                 'message': 'Camera not connected'
             })
 
-        # Trigger capture and get image
-        response = requests.get(f"http://{ESP32_CAM_IP}/capture", timeout=10)
+        print(f"📸 Attempting photo capture from {ESP32_CAM_IP}...")
 
-        if response.status_code == 200:
-            # Save image with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"walle_capture_{timestamp}.jpg"
+        # Try capture with longer timeout and retries
+        max_attempts = 3
+        last_error = None
 
-            # Create captures directory if it doesn't exist
-            captures_dir = "static/captures"
-            os.makedirs(captures_dir, exist_ok=True)
+        for attempt in range(max_attempts):
+            try:
+                print(f"Capture attempt {attempt + 1}/{max_attempts}...")
 
-            filepath = os.path.join(captures_dir, filename)
+                # Trigger capture and get image with longer timeout
+                response = requests.get(f"http://{ESP32_CAM_IP}/capture", timeout=15)
 
-            with open(filepath, 'wb') as f:
-                f.write(response.content)
+                if response.status_code == 200:
+                    # Check if we got actual image data
+                    content_length = len(response.content)
+                    content_type = response.headers.get('content-type', '')
 
-            return jsonify({
-                'success': True,
-                'filename': filename,
-                'filepath': filepath,
-                'url': f'/static/captures/{filename}',
-                'message': 'Photo captured successfully'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Failed to capture photo'
-            })
+                    print(f"Received {content_length} bytes, type: {content_type}")
 
-    except Exception as e:
+                    if content_length < 100:
+                        raise Exception(f"Image too small: {content_length} bytes")
+
+                    if 'image' not in content_type and content_length < 1000:
+                        # Might be an error message, not an image
+                        error_msg = response.content.decode('utf-8', errors='ignore')[:200]
+                        raise Exception(f"ESP32-CAM error: {error_msg}")
+
+                    # Save image with timestamp
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"walle_capture_{timestamp}.jpg"
+
+                    # Create captures directory if it doesn't exist
+                    captures_dir = "static/captures"
+                    os.makedirs(captures_dir, exist_ok=True)
+
+                    filepath = os.path.join(captures_dir, filename)
+
+                    with open(filepath, 'wb') as f:
+                        f.write(response.content)
+
+                    print(f"✅ Photo saved: {filepath} ({content_length} bytes)")
+
+                    return jsonify({
+                        'success': True,
+                        'filename': filename,
+                        'filepath': filepath,
+                        'url': f'/static/captures/{filename}',
+                        'size_bytes': content_length,
+                        'message': 'Photo captured successfully'
+                    })
+
+                else:
+                    error_msg = f"HTTP {response.status_code}: {response.text[:200]}"
+                    print(f"❌ Attempt {attempt + 1} failed: {error_msg}")
+                    last_error = error_msg
+
+                    if attempt < max_attempts - 1:
+                        time.sleep(1)  # Wait before retry
+
+            except requests.exceptions.Timeout:
+                error_msg = f"Timeout after 15 seconds"
+                print(f"❌ Attempt {attempt + 1} timeout")
+                last_error = error_msg
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+
+            except Exception as e:
+                error_msg = str(e)
+                print(f"❌ Attempt {attempt + 1} error: {error_msg}")
+                last_error = error_msg
+                if attempt < max_attempts - 1:
+                    time.sleep(1)
+
+        # All attempts failed
         return jsonify({
             'success': False,
-            'message': str(e)
+            'message': f'Photo capture failed after {max_attempts} attempts. Last error: {last_error}'
+        })
+
+    except Exception as e:
+        print(f"❌ Capture function error: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Capture system error: {str(e)}'
         })
 
 
