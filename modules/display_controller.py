@@ -174,18 +174,22 @@ class EnhancedDisplayController:
         except Exception as e:
             print(f"Error drawing sun: {e}")
 
-
     def draw_charge_bars(self, draw, x, y, width, height, battery_level, num_bars=12):
         """Draw charge bars like the original solar panel - empties from TOP"""
-        bar_height = height // num_bars
-        bar_spacing = 1
-        actual_bar_height = max(1, bar_height - bar_spacing)
+        bar_spacing = 2  # Increased spacing between bars
+        available_height = height - (bar_spacing * (num_bars - 1))
+        bar_height = max(1, available_height // num_bars)
+        actual_bar_height = max(1, bar_height)
 
         # Calculate how many bars should be filled (from top to bottom)
         bars_to_fill = int((battery_level / 100.0) * num_bars)
 
         for i in range(num_bars):
-            bar_y = y + i * bar_height
+            bar_y = y + i * (bar_height + bar_spacing)
+
+            # Skip if bar would be outside display
+            if bar_y + actual_bar_height >= self.height:
+                continue
 
             # Draw bar outline (all bars always have outlines)
             draw.rectangle([(x, bar_y), (x + width, bar_y + actual_bar_height)],
@@ -210,7 +214,7 @@ class EnhancedDisplayController:
                     if fill_width > 0:
                         draw.rectangle([(x + 1, bar_y + 1), (x + 1 + fill_width, bar_y + actual_bar_height - 1)],
                                        fill=255)
-
+                        
     def draw_energy_particles(self, draw, frame):
         """Draw energy flow particles from sun to charge bars"""
         for i in range(3):
