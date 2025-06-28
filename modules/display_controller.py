@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Enhanced Display Controller with Solar Charging Mode
-Adds solar panel interface to existing Wall-E display
+Enhanced Display Controller with Vertical Solar Charging Mode
+Complete version with vertical solar panel interface
 """
 
 import time
@@ -14,7 +14,6 @@ try:
     import busio
     import adafruit_ssd1306
     from PIL import Image, ImageDraw, ImageFont
-
     I2C_AVAILABLE = True
 except ImportError as e:
     print(f"Display libraries not available: {e}")
@@ -23,7 +22,7 @@ except ImportError as e:
 
 class EnhancedDisplayController:
     def __init__(self, width=128, height=64, address=0x3C, auto_detect=True):
-        """Initialize enhanced display controller with solar capabilities"""
+        """Initialize enhanced display controller with vertical solar capabilities"""
         self.width = width
         self.height = height
         self.address = address
@@ -31,7 +30,7 @@ class EnhancedDisplayController:
         self.available = False
         self.last_battery_level = 100
         self.animation_frame = 0
-        self.display_mode = 'normal'  # 'normal', 'solar', 'battery'
+        self.display_mode = 'solar'  # Default to solar mode
 
         if not I2C_AVAILABLE:
             print("✗ Display controller: Required libraries not installed")
@@ -43,38 +42,6 @@ class EnhancedDisplayController:
         if auto_detect:
             print(f"Display not found at 0x{address:02X}, trying auto-detection...")
             self._auto_detect_display()
-
-    def safe_rectangle(self, draw, coords, **kwargs):
-        """Draw rectangle with safe coordinates"""
-        x1, y1, x2, y2 = coords
-
-        # Ensure coordinates are in bounds and properly ordered
-        x1 = max(0, min(x1, self.width - 1))
-        y1 = max(0, min(y1, self.height - 1))
-        x2 = max(0, min(x2, self.width - 1))
-        y2 = max(0, min(y2, self.height - 1))
-
-        # Ensure x2 >= x1 and y2 >= y1
-        if x2 < x1:
-            x1, x2 = x2, x1
-        if y2 < y1:
-            y1, y2 = y2, y1
-
-        # Only draw if we have valid coordinates
-        if x2 > x1 and y2 > y1:
-            draw.rectangle([(x1, y1), (x2, y2)], **kwargs)
-
-    def safe_line(self, draw, coords, **kwargs):
-        """Draw line with safe coordinates"""
-        x1, y1, x2, y2 = coords
-
-        # Clamp coordinates to display bounds
-        x1 = max(0, min(x1, self.width - 1))
-        y1 = max(0, min(y1, self.height - 1))
-        x2 = max(0, min(x2, self.width - 1))
-        y2 = max(0, min(y2, self.height - 1))
-
-        draw.line([(x1, y1), (x2, y2)], **kwargs)
 
     def _auto_detect_display(self):
         """Auto-detect display configuration"""
@@ -131,11 +98,11 @@ class EnhancedDisplayController:
             if self.height >= 64:
                 draw.text((10, 5), "WALL-E", font=font, fill=255)
                 draw.text((10, 25), "Control System", font=small_font, fill=255)
-                draw.text((10, 40), "Solar Ready", font=small_font, fill=255)
+                draw.text((10, 40), "Vertical Solar", font=small_font, fill=255)
                 draw.text((10, 52), datetime.now().strftime("%H:%M"), font=small_font, fill=255)
             else:
                 draw.text((5, 2), "WALL-E", font=font, fill=255)
-                draw.text((5, 18), "Solar Ready", font=small_font, fill=255)
+                draw.text((5, 18), "Vertical Solar", font=small_font, fill=255)
 
             self.display.image(image)
             self.display.show()
@@ -143,7 +110,38 @@ class EnhancedDisplayController:
         except Exception as e:
             print(f"Error showing startup message: {e}")
 
-    # Solar Display Methods
+    def safe_rectangle(self, draw, coords, **kwargs):
+        """Draw rectangle with safe coordinates"""
+        x1, y1, x2, y2 = coords
+
+        # Ensure coordinates are in bounds and properly ordered
+        x1 = max(0, min(x1, self.width - 1))
+        y1 = max(0, min(y1, self.height - 1))
+        x2 = max(0, min(x2, self.width - 1))
+        y2 = max(0, min(y2, self.height - 1))
+
+        # Ensure x2 >= x1 and y2 >= y1
+        if x2 < x1:
+            x1, x2 = x2, x1
+        if y2 < y1:
+            y1, y2 = y2, y1
+
+        # Only draw if we have valid coordinates
+        if x2 > x1 and y2 > y1:
+            draw.rectangle([(x1, y1), (x2, y2)], **kwargs)
+
+    def safe_line(self, draw, coords, **kwargs):
+        """Draw line with safe coordinates"""
+        x1, y1, x2, y2 = coords
+
+        # Clamp coordinates to display bounds
+        x1 = max(0, min(x1, self.width - 1))
+        y1 = max(0, min(y1, self.height - 1))
+        x2 = max(0, min(x2, self.width - 1))
+        y2 = max(0, min(y2, self.height - 1))
+
+        draw.line([(x1, y1), (x2, y2)], **kwargs)
+
     def draw_sun(self, draw, x, y, size=16, frame=0):
         """Draw animated sun with rotating rays"""
         try:
@@ -157,78 +155,99 @@ class EnhancedDisplayController:
                                 (x - sun_radius, y - sun_radius, x + sun_radius, y + sun_radius),
                                 outline=255, fill=0)
 
-            # Sun rays
+            # Rotating sun rays
             num_rays = 8
-            ray_length = size // 2 + 4
+            ray_length = size // 2 + 3
 
             for i in range(num_rays):
-                angle = (i * 45 + frame * 5) * math.pi / 180
+                angle = (i * 45 + frame * 3) * math.pi / 180
 
-                inner_x = x + int((size // 2 + 2) * math.cos(angle))
-                inner_y = y + int((size // 2 + 2) * math.sin(angle))
-                outer_x = x + int((size // 2 + ray_length) * math.cos(angle))
-                outer_y = y + int((size // 2 + ray_length) * math.sin(angle))
+                inner_radius = size // 2 + 1
+                outer_radius = size // 2 + ray_length
+
+                inner_x = x + int(inner_radius * math.cos(angle))
+                inner_y = y + int(inner_radius * math.sin(angle))
+                outer_x = x + int(outer_radius * math.cos(angle))
+                outer_y = y + int(outer_radius * math.sin(angle))
 
                 self.safe_line(draw, (inner_x, inner_y, outer_x, outer_y), fill=255, width=1)
 
         except Exception as e:
             print(f"Error drawing sun: {e}")
 
-    def draw_charge_bars(self, draw, x, y, width, height, battery_level, num_bars=12):
-        """Draw charge bars like the original solar panel - empties from TOP"""
-        bar_spacing = 2  # Increased spacing between bars
-        available_height = height - (bar_spacing * (num_bars - 1))
-        bar_height = max(1, available_height // num_bars)
-        actual_bar_height = max(1, bar_height)
+    def draw_vertical_charge_bars(self, draw, x, y, width, height, battery_level, num_bars=12):
+        """Draw VERTICAL charge bars - stack vertically, empty from TOP"""
+        try:
+            bar_spacing = 2  # Increased spacing between bars
+            available_height = height - (bar_spacing * (num_bars - 1))
+            bar_height = max(2, available_height // num_bars)  # Minimum 2 pixels high
 
-        # Calculate how many bars should be filled (from top to bottom)
-        bars_to_fill = int((battery_level / 100.0) * num_bars)
+            # Calculate how many bars should be filled
+            bars_to_fill = int((battery_level / 100.0) * num_bars)
 
-        for i in range(num_bars):
-            bar_y = y + i * (bar_height + bar_spacing)
+            for i in range(num_bars):
+                bar_y = y + i * (bar_height + bar_spacing)
 
-            # Skip if bar would be outside display
-            if bar_y + actual_bar_height >= self.height:
-                continue
+                # Skip if bar would be outside display
+                if bar_y + bar_height >= self.height - 10:  # Leave room for bottom text
+                    continue
 
-            # Draw bar outline (all bars always have outlines)
-            draw.rectangle([(x, bar_y), (x + width, bar_y + actual_bar_height)],
-                           outline=255, fill=0)
+                # Draw bar outline (all bars always have outlines)
+                self.safe_rectangle(draw,
+                                    (x, bar_y, x + width, bar_y + bar_height),
+                                    outline=255, fill=0)
 
-            # Fill bars from top down
-            # Bar index 0 = top bar, should be filled when battery > (11/12)*100 = 91.67%
-            # Bar index 11 = bottom bar, should be filled when battery > (0/12)*100 = 0%
-            bar_threshold = ((num_bars - 1 - i) / num_bars) * 100
+                # Fill bars from top down (like fuel gauge emptying from top)
+                # Top bar (i=0) empties first when battery decreases
+                # Bottom bar (i=11) is last to empty
+                bar_threshold = ((num_bars - 1 - i) / num_bars) * 100
 
-            if battery_level > bar_threshold:
-                if i < bars_to_fill:
-                    # Full bar
-                    draw.rectangle([(x + 1, bar_y + 1), (x + width - 1, bar_y + actual_bar_height - 1)],
-                                   fill=255)
-                elif i == bars_to_fill:
-                    # Partial bar (current draining bar from top)
-                    remaining_in_segment = battery_level - bar_threshold
-                    segment_size = 100.0 / num_bars
-                    partial_fill = remaining_in_segment / segment_size
-                    fill_width = int((width - 2) * partial_fill)
-                    if fill_width > 0:
-                        draw.rectangle([(x + 1, bar_y + 1), (x + 1 + fill_width, bar_y + actual_bar_height - 1)],
-                                       fill=255)
-                        
-    def draw_energy_particles(self, draw, frame):
-        """Draw energy flow particles from sun to charge bars"""
-        for i in range(3):
-            particle_x = 30 + ((frame + i * 25) % 60)
-            particle_y = 25 + int(3 * math.sin((frame + i * 30) * 0.1))
+                if battery_level > bar_threshold:
+                    if i < bars_to_fill:
+                        # Full bar
+                        self.safe_rectangle(draw,
+                                            (x + 1, bar_y + 1, x + width - 1, bar_y + bar_height - 1),
+                                            fill=255)
+                    elif i == bars_to_fill:
+                        # Partial bar (currently draining from top)
+                        remaining_in_segment = battery_level - bar_threshold
+                        segment_size = 100.0 / num_bars
+                        if segment_size > 0:
+                            partial_fill = remaining_in_segment / segment_size
+                            fill_width = max(1, int((width - 2) * partial_fill))
 
-            # Energy particle
-            if particle_x < 90:  # Only show particles traveling to bars
-                draw.rectangle([(particle_x, particle_y), (particle_x + 1, particle_y + 1)], fill=255)
+                            self.safe_rectangle(draw,
+                                                (x + 1, bar_y + 1, x + 1 + fill_width, bar_y + bar_height - 1),
+                                                fill=255)
+
+        except Exception as e:
+            print(f"Error drawing vertical charge bars: {e}")
+
+    def draw_vertical_energy_particles(self, draw, frame):
+        """Draw energy particles flowing vertically downward from sun to charge bars"""
+        try:
+            for i in range(3):
+                # Particles flow vertically downward
+                particle_x = 15 + int(3 * math.sin((frame + i * 20) * 0.1))  # Slight horizontal wiggle
+                particle_y = 38 + ((frame + i * 15) % 25)  # Flow downward
+
+                # Only show particles in the flow zone (from sun to bars)
+                if particle_y < 50 and 10 < particle_x < 35:
+                    # Clamp particle position
+                    particle_x = max(0, min(particle_x, self.width - 2))
+                    particle_y = max(0, min(particle_y, self.height - 2))
+
+                    self.safe_rectangle(draw,
+                                        (particle_x, particle_y, particle_x + 1, particle_y + 1),
+                                        fill=255)
+
+        except Exception as e:
+            print(f"Error drawing vertical energy particles: {e}")
 
     def show_solar_panel_mode(self, battery_level: int = 85, solar_power: float = 1.2,
                               is_charging: bool = True, time_to_full: float = 2.5):
         """
-        Show solar panel charging interface (like the original image)
+        Show VERTICAL solar panel charging interface (portrait layout)
 
         Args:
             battery_level: Battery percentage (0-100)
@@ -250,45 +269,49 @@ class EnhancedDisplayController:
             except:
                 font = small_font = tiny_font = ImageFont.load_default()
 
-            # Title
-            draw.text((10, 0), "SOLAR CHARGE PANEL", font=tiny_font, fill=255)
+            # === VERTICAL LAYOUT ===
 
-            # Sun icon (left side)
-            sun_x, sun_y = 25, 30
-            self.draw_sun(draw, sun_x, sun_y, size=14, frame=self.animation_frame)
+            # Title at top left
+            draw.text((2, 0), "SOLAR", font=small_font, fill=255)
+            draw.text((2, 10), "PANEL", font=tiny_font, fill=255)
 
-            # Energy flow particles if charging
+            # Sun icon (top left, smaller for vertical layout)
+            sun_x, sun_y = 15, 28
+            self.draw_sun(draw, sun_x, sun_y, size=10, frame=self.animation_frame)
+
+            # Energy flow particles (vertical flow downward)
             if is_charging:
-                self.draw_energy_particles(draw, self.animation_frame)
+                self.draw_vertical_energy_particles(draw, self.animation_frame)
 
-            # Charge bars (right side) - recreating the original look
-            bars_start_x = 65
-            bars_start_y = 12
-            bar_width = 55
-            bars_height = 35
+            # VERTICAL charge bars (main centerpiece - running down the middle)
+            bars_start_x = 45  # Center position
+            bars_start_y = 15  # Start high
+            bar_width = 8      # Narrow bars for vertical layout
+            bars_height = 35   # Tall for vertical layout
 
-            self.draw_charge_bars(draw, bars_start_x, bars_start_y, bar_width, bars_height, battery_level, 12)
+            self.draw_vertical_charge_bars(draw, bars_start_x, bars_start_y, bar_width, bars_height, battery_level, 12)
 
-            # Status information at bottom
-            status_y = 50
+            # Right side - status information (stacked vertically)
+            status_x = 65
 
-            # Battery percentage (prominent)
-            draw.text((5, status_y), f"{battery_level}%", font=font, fill=255)
+            # Battery percentage (large, prominent)
+            draw.text((status_x, 12), f"{battery_level}%", font=font, fill=255)
 
-            # Solar power
-            draw.text((35, status_y), f"{solar_power:.1f}W", font=small_font, fill=255)
+            # Solar power (middle right)
+            draw.text((status_x, 24), f"{solar_power:.1f}W", font=small_font, fill=255)
 
-            # Status indicator
+            # Charging status (bottom right)
             if is_charging:
-                if self.animation_frame % 20 < 10:  # Blinking
-                    draw.text((65, status_y), "CHRG", font=small_font, fill=255)
-                draw.text((95, status_y), f"{time_to_full:.1f}H", font=small_font, fill=255)
+                if self.animation_frame % 20 < 10:  # Blinking indicator
+                    draw.text((status_x, 36), "CHG", font=small_font, fill=255)
+                draw.text((status_x, 46), f"{time_to_full:.1f}H", font=tiny_font, fill=255)
             else:
-                draw.text((65, status_y), "IDLE", font=small_font, fill=255)
+                draw.text((status_x, 36), "IDLE", font=small_font, fill=255)
 
-            # Wall-E indicator
-            draw.text((5, 58), "WALL-E", font=tiny_font, fill=255)
-            draw.text((95, 58), datetime.now().strftime("%H:%M"), font=tiny_font, fill=255)
+            # Bottom status line
+            bottom_y = self.height - 8
+            draw.text((2, bottom_y), "WALL-E", font=tiny_font, fill=255)
+            draw.text((85, bottom_y), datetime.now().strftime("%H:%M"), font=tiny_font, fill=255)
 
             self.display.image(image)
             self.display.show()
@@ -299,36 +322,40 @@ class EnhancedDisplayController:
                 self.animation_frame = 0
 
         except Exception as e:
-            print(f"Error showing solar panel mode: {e}")
+            print(f"Error showing vertical solar panel mode: {e}")
 
     def update_status(self, walle_state: Dict):
         """
-        Enhanced status update with mode switching
+        Enhanced status update with vertical solar mode as default
         """
         if not self.available:
             return
 
-        battery_level = walle_state.get('battery_level', 100)
-        is_charging = walle_state.get('is_charging', False)
-        solar_power = walle_state.get('solar_power', 0.0)
+        try:
+            battery_level = walle_state.get('battery_level', 100)
+            is_charging = walle_state.get('is_charging', False)
+            solar_power = walle_state.get('solar_power', 0.0)
 
-        # Auto-switch to solar mode if solar power detected or charging
-        if solar_power > 0.1 or is_charging:
+            # Solar mode is now the default mode
             self.display_mode = 'solar'
-        elif battery_level < 25:
-            self.display_mode = 'battery'
-        else:
-            self.display_mode = 'normal'
 
-        if self.display_mode == 'solar':
-            time_to_full = walle_state.get('time_to_full', 0.0)
-            self.show_solar_panel_mode(battery_level, solar_power, is_charging, time_to_full)
-        elif self.display_mode == 'battery':
-            self.show_battery_focus(battery_level, walle_state.get('battery_voltage', 0.0), is_charging)
-        else:
-            self._show_normal_status(walle_state)
+            # Only switch to other modes in special cases
+            if battery_level < 15:  # Only switch to battery mode when critically low
+                self.display_mode = 'battery'
+            # Solar mode for everything else (default)
 
-        self.last_battery_level = battery_level
+            if self.display_mode == 'solar':
+                time_to_full = walle_state.get('time_to_full', 0.0)
+                self.show_solar_panel_mode(battery_level, solar_power, is_charging, time_to_full)
+            elif self.display_mode == 'battery':
+                self.show_battery_focus(battery_level, walle_state.get('battery_voltage', 0.0), is_charging)
+            else:
+                self._show_normal_status(walle_state)
+
+            self.last_battery_level = battery_level
+
+        except Exception as e:
+            print(f"Error updating status: {e}")
 
     def _show_normal_status(self, walle_state: Dict):
         """Show normal Wall-E status display"""
@@ -362,14 +389,14 @@ class EnhancedDisplayController:
             bar_x, bar_y = 70, 36
             bar_width, bar_height = 52, 6
 
-            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)],
-                           outline=255, fill=0)
+            self.safe_rectangle(draw, (bar_x, bar_y, bar_x + bar_width, bar_y + bar_height),
+                                outline=255, fill=0)
 
             fill_width = int((battery_level / 100.0) * (bar_width - 2))
             if fill_width > 0:
-                draw.rectangle([(bar_x + 1, bar_y + 1),
-                                (bar_x + 1 + fill_width, bar_y + bar_height - 1)],
-                               fill=255)
+                self.safe_rectangle(draw,
+                                    (bar_x + 1, bar_y + 1, bar_x + 1 + fill_width, bar_y + bar_height - 1),
+                                    fill=255)
 
             # Sensors
             sensors = walle_state.get('sensors', {})
@@ -391,7 +418,7 @@ class EnhancedDisplayController:
             print(f"Error showing normal status: {e}")
 
     def show_battery_focus(self, battery_level: int, voltage: float = 0.0, charging: bool = False):
-        """Show focused battery display (from previous version)"""
+        """Show focused battery display"""
         if not self.available:
             return
 
@@ -421,21 +448,21 @@ class EnhancedDisplayController:
             bar_width, bar_height = self.width - 20, 12
 
             # Battery outline
-            draw.rectangle([(bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height)],
-                           outline=255, fill=0)
+            self.safe_rectangle(draw, (bar_x, bar_y, bar_x + bar_width, bar_y + bar_height),
+                                outline=255, fill=0)
 
             # Battery terminal
             terminal_width = 3
-            draw.rectangle([(bar_x + bar_width, bar_y + 3),
-                            (bar_x + bar_width + terminal_width, bar_y + bar_height - 3)],
-                           fill=255)
+            self.safe_rectangle(draw, (bar_x + bar_width, bar_y + 3,
+                                       bar_x + bar_width + terminal_width, bar_y + bar_height - 3),
+                                fill=255)
 
             # Battery fill
             fill_width = int((battery_level / 100.0) * (bar_width - 2))
             if fill_width > 0:
-                draw.rectangle([(bar_x + 1, bar_y + 1),
-                                (bar_x + 1 + fill_width, bar_y + bar_height - 1)],
-                               fill=255)
+                self.safe_rectangle(draw,
+                                    (bar_x + 1, bar_y + 1, bar_x + 1 + fill_width, bar_y + bar_height - 1),
+                                    fill=255)
 
             # Status line
             status_y = bar_y + bar_height + 3
@@ -465,7 +492,7 @@ class EnhancedDisplayController:
             print(f"Invalid display mode: {mode}")
 
     def show_solar_animation_sequence(self, battery_level: int = 75, duration: int = 60):
-        """Show animated solar charging sequence"""
+        """Show animated vertical solar charging sequence"""
         if not self.available:
             return
 
@@ -543,12 +570,16 @@ class EnhancedDisplayController:
             print("Enhanced display controller cleaned up")
 
 
-# Test function
-def test_enhanced_solar_display():
-    """Test the enhanced display with solar functionality"""
-    print("Testing Enhanced Solar Display Controller...")
+# Backward compatibility alias
+DisplayController = EnhancedDisplayController
 
-    display = EnhancedDisplayController(auto_detect=True)
+
+# Test function
+def test_vertical_solar_display():
+    """Test the vertical solar display functionality"""
+    print("Testing Vertical Solar Display Controller...")
+
+    display = DisplayController(auto_detect=True)
 
     if not display.available:
         print("Display not available for testing")
@@ -559,55 +590,34 @@ def test_enhanced_solar_display():
     # Test startup
     time.sleep(2)
 
-    print("Testing solar panel mode...")
-    for i in range(20):
-        battery_level = 60 + i
-        solar_power = 1.0 + 0.5 * math.sin(i * 0.3)
-        time_to_full = (100 - battery_level) / 15
+    print("Testing vertical solar panel mode...")
+    # Test different battery levels to see vertical bars empty from top
+    test_levels = [100, 90, 75, 50, 25, 15, 8, 0]
 
-        display.show_solar_panel_mode(battery_level, solar_power, True, time_to_full)
-        time.sleep(0.2)
+    for battery_level in test_levels:
+        print(f"  Battery level: {battery_level}% - Watch TOP bars empty first!")
+        display.show_solar_panel_mode(
+            battery_level=battery_level,
+            solar_power=1.2,
+            is_charging=True,
+            time_to_full=2.0
+        )
+        time.sleep(2)
 
-    print("Testing mode switching...")
-    # Test normal mode
-    display.set_display_mode('normal')
-    test_state = {
-        'mode': 'exploring',
-        'battery_level': 85,
-        'connected': True,
-        'sensors': {'front': 25, 'left': 30, 'right': 20}
-    }
-    display.update_status(test_state)
-    time.sleep(3)
-
-    # Test solar mode
-    display.set_display_mode('solar')
-    test_state_solar = {
-        'mode': 'charging',
-        'battery_level': 75,
-        'is_charging': True,
-        'solar_power': 1.2,
-        'time_to_full': 2.5
-    }
-    display.update_status(test_state_solar)
-    time.sleep(3)
-
-    # Test battery mode
-    display.set_display_mode('battery')
-    test_state_battery = {
-        'battery_level': 20,
-        'battery_voltage': 11.1,
-        'is_charging': False
-    }
-    display.update_status(test_state_battery)
-    time.sleep(3)
-
-    print("Testing solar animation sequence...")
-    display.show_solar_animation_sequence(battery_level=70, duration=30)
+    print("Testing charging animation...")
+    for i in range(30):
+        battery = 50 + i
+        display.show_solar_panel_mode(
+            battery_level=battery,
+            solar_power=1.5,
+            is_charging=True,
+            time_to_full=1.5
+        )
+        time.sleep(0.1)
 
     display.cleanup()
-    print("Enhanced solar display test complete!")
+    print("Vertical solar display test complete!")
 
 
 if __name__ == "__main__":
-    test_enhanced_solar_display()
+    test_vertical_solar_display()
