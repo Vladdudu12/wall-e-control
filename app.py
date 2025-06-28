@@ -50,7 +50,7 @@ walle_state = {
     },
     'is_charging': True,
     'solar_power': 1.2,
-    'time_to-full': 2.5,
+    'time_to_full': 2.5,
     'connected': False,
     'last_update': datetime.now().isoformat()
 }
