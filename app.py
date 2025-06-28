@@ -72,39 +72,37 @@ battery = None
 
 # ESP32-CAM Discovery and Connection Functions
 def discover_esp32_cam():
-    """Auto-discover ESP32-CAM on the network"""
+    """Discover ESP32-CAM on Wall-E Access Point network"""
     global ESP32_CAM_IP
 
-    print("Scanning for ESP32-CAM...")
+    print("Scanning for ESP32-CAM on Wall-E Access Point...")
 
-    # Get local network range
-    try:
-        # Get Pi's IP to determine network range
-        hostname = socket.gethostname()
-        pi_ip = socket.gethostbyname(hostname)
-        network_base = '.'.join(pi_ip.split('.')[:-1])
-        print(f"Scanning network: {network_base}.x")
-    except:
-        network_base = CAMERA_SCAN_RANGE
-    #
-    # # Scan common IP addresses
-    # for i in range(100, 200):  # Scan .100 to .199
-    #     try:
-    #         test_ip = f"{network_base}.{i}"
-    #         response = requests.get(f"http://{test_ip}/status", timeout=2)
-    #
-    #         if response.status_code == 200:
-    #             data = response.json()
-    #             if 'mac' in data and 'ip' in data:
-    #                 print(f"✓ Found ESP32-CAM at {test_ip}")
-    #                 ESP32_CAM_IP = test_ip
-    #                 return test_ip
-    #
-    #     except:
-    #         continue
-    ESP32_CAM_IP = "192.168.50.181"
-    return ESP32_CAM_IP
-    print("✗ ESP32-CAM not found on network")
+    # In AP mode, we know the network range
+    network_base = "192.168.4"
+
+    # Common DHCP range for ESP32-CAM
+    dhcp_range = range(10, 51)  # 192.168.4.10 to 192.168.4.50
+
+    for i in dhcp_range:
+        try:
+            test_ip = f"{network_base}.{i}"
+            print(f"Testing {test_ip}...")
+
+            response = requests.get(f"http://{test_ip}/status", timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+                # Check if it's our ESP32-CAM
+                if 'camera' in data and 'Wall-E' in str(data):
+                    print(f"✓ Found ESP32-CAM at {test_ip}")
+                    print(f"Camera details: {data}")
+                    ESP32_CAM_IP = test_ip
+                    return test_ip
+
+        except:
+            continue
+
+    print("✗ ESP32-CAM not found on Wall-E network")
     return None
 
 
@@ -576,6 +574,45 @@ def get_available_sounds():
             'message': str(e)
         }), 500
 
+
+@app.route('/api/network/ap_status')
+def ap_status():
+    """Get Access Point status"""
+    try:
+        import subprocess
+
+        # Check if hostapd is running
+        result = subprocess.run(['systemctl', 'is-active', 'hostapd'],
+                                capture_output=True, text=True)
+        hostapd_status = result.stdout.strip()
+
+        # Check connected clients
+        try:
+            with open('/var/lib/dhcp/dhcpd.leases', 'r') as f:
+                leases = f.read()
+            client_count = leases.count('binding state active')
+        except:
+            client_count = 0
+
+        # Get interface info
+        result = subprocess.run(['ip', 'addr', 'show', 'wlan0'],
+                                capture_output=True, text=True)
+        wlan0_info = result.stdout
+
+        return jsonify({
+            'success': True,
+            'ap_active': hostapd_status == 'active',
+            'ssid': 'Wall-E-Robot',
+            'ip': '192.168.4.1',
+            'connected_clients': client_count,
+            'interface_info': wlan0_info
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
 
 @app.route('/api/camera/status')
 def camera_status():
