@@ -189,6 +189,12 @@ switch_to_client_mode() {
         fi
 
         systemctl restart wpa_supplicant
+
+        # Remove any ignore rules
+        rm -f /etc/NetworkManager/conf.d/99-unmanaged-devices.conf
+
+        # Restart NetworkManager
+        systemctl restart NetworkManager
     fi
 
     # Save state
