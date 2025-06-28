@@ -5,6 +5,7 @@ Author: Vladdudu12
 Repository: https://github.com/Vladdudu12/wall-e-control
 
 Main web server for controlling Wall-E robot via web interface.
+Includes integrated Bluetooth audio support.
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -14,7 +15,7 @@ import time
 import threading
 from datetime import datetime
 
-# Wall-E modules (we'll create these)
+# Wall-E modules
 try:
     from modules.arduino_controller import ArduinoController
     from modules.audio_system import AudioSystem
@@ -57,47 +58,103 @@ audio = None
 display = None
 battery = None
 
+
 def initialize_hardware():
     """Initialize all Wall-E hardware components"""
     global arduino, audio, display, battery
-    
+
     try:
         # Initialize Arduino communication
         arduino = ArduinoController()
+        walle_state['connected'] = arduino.is_connected()
         print("✓ Arduino controller initialized")
     except Exception as e:
         print(f"✗ Arduino controller failed: {e}")
-    
+
     try:
-        # Initialize audio system
+        # Initialize audio system with Bluetooth support
         audio = AudioSystem()
         print("✓ Audio system initialized")
+
+        # Set up Bluetooth status callbacks
+        if hasattr(audio, 'set_connection_status_callback'):
+            audio.set_connection_status_callback(bluetooth_status_callback)
+
     except Exception as e:
         print(f"✗ Audio system failed: {e}")
-    
+
     try:
         # Initialize OLED display
         display = DisplayController()
         print("✓ Display controller initialized")
     except Exception as e:
         print(f"✗ Display controller failed: {e}")
-    
+
     try:
         # Initialize battery monitor
         battery = BatteryMonitor()
         print("✓ Battery monitor initialized")
+
+        # Set up battery callbacks
+        battery.set_low_battery_callback(low_battery_callback)
+        battery.set_critical_battery_callback(critical_battery_callback)
+
     except Exception as e:
         print(f"✗ Battery monitor failed: {e}")
 
+
+def bluetooth_status_callback(connected, message):
+    """Callback for Bluetooth connection status changes"""
+    socketio.emit('bluetooth_status_update', {
+        'connected': connected,
+        'message': message
+    })
+
+
+def low_battery_callback(percentage):
+    """Callback for low battery warning"""
+    socketio.emit('battery_warning', {
+        'level': 'low',
+        'percentage': percentage,
+        'message': f'Low battery: {percentage}%'
+    })
+
+    if audio:
+        audio.play_wall_e_emotion('worried')
+
+
+def critical_battery_callback(percentage):
+    """Callback for critical battery warning"""
+    socketio.emit('battery_warning', {
+        'level': 'critical',
+        'percentage': percentage,
+        'message': f'Critical battery: {percentage}%! Please charge immediately.'
+    })
+
+    if audio:
+        audio.play_wall_e_emotion('error')
+
+
+# Main routes
 @app.route('/')
 def index():
     """Main Wall-E control interface"""
     return render_template('index.html')
 
+
 @app.route('/api/status')
 def get_status():
     """Get current Wall-E status"""
+    # Update connection status
+    if arduino:
+        walle_state['connected'] = arduino.is_connected()
+
+    # Add audio system info
+    if audio and hasattr(audio, 'get_audio_info'):
+        walle_state['audio_info'] = audio.get_audio_info()
+
     return jsonify(walle_state)
+
 
 @app.route('/api/command', methods=['POST'])
 def send_command():
@@ -106,19 +163,19 @@ def send_command():
         data = request.get_json()
         command = data.get('command')
         params = data.get('params', {})
-        
+
         result = process_command(command, params)
-        
+
         # Update state and broadcast to all clients
         walle_state['last_update'] = datetime.now().isoformat()
         socketio.emit('status_update', walle_state)
-        
+
         return jsonify({
             'success': True,
             'result': result,
             'message': f"Command '{command}' executed successfully"
         })
-        
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -126,38 +183,388 @@ def send_command():
             'message': "Command execution failed"
         }), 500
 
+
+# Bluetooth API endpoints
+@app.route('/api/bluetooth/status')
+def bluetooth_status():
+    """Get Bluetooth connection status"""
+    try:
+        if audio and hasattr(audio, 'get_bluetooth_status'):
+            status = audio.get_bluetooth_status()
+            return jsonify({
+                'success': True,
+                'status': status
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Bluetooth not available'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/bluetooth/scan', methods=['POST'])
+def bluetooth_scan():
+    """Scan for Bluetooth devices"""
+    try:
+        if audio and hasattr(audio, 'scan_bluetooth_speakers'):
+            devices = audio.scan_bluetooth_speakers()
+            return jsonify({
+                'success': True,
+                'devices': devices,
+                'message': f'Found {len(devices)} device(s)'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Bluetooth not available',
+                'devices': []
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'devices': []
+        }), 500
+
+
+@app.route('/api/bluetooth/connect', methods=['POST'])
+def bluetooth_connect():
+    """Connect to a Bluetooth device"""
+    try:
+        if not audio or not hasattr(audio, 'connect_bluetooth_speaker'):
+            return jsonify({
+                'success': False,
+                'message': 'Bluetooth not available'
+            }), 500
+
+        data = request.get_json()
+        mac_address = data.get('mac_address')
+
+        if not mac_address:
+            return jsonify({
+                'success': False,
+                'message': 'MAC address required'
+            }), 400
+
+        success = audio.connect_bluetooth_speaker(mac_address)
+
+        if success:
+            socketio.emit('bluetooth_status_update', {
+                'connected': True,
+                'device': mac_address
+            })
+
+            return jsonify({
+                'success': True,
+                'message': f'Connected to {mac_address}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to connect to {mac_address}'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/bluetooth/disconnect', methods=['POST'])
+def bluetooth_disconnect():
+    """Disconnect from a Bluetooth device"""
+    try:
+        if not audio or not hasattr(audio, 'disconnect_bluetooth_speaker'):
+            return jsonify({
+                'success': False,
+                'message': 'Bluetooth not available'
+            }), 500
+
+        data = request.get_json()
+        mac_address = data.get('mac_address')
+
+        if not mac_address:
+            return jsonify({
+                'success': False,
+                'message': 'MAC address required'
+            }), 400
+
+        success = audio.disconnect_bluetooth_speaker(mac_address)
+
+        if success:
+            socketio.emit('bluetooth_status_update', {
+                'connected': False,
+                'device': mac_address
+            })
+
+            return jsonify({
+                'success': True,
+                'message': f'Disconnected from {mac_address}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to disconnect from {mac_address}'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/bluetooth/test', methods=['POST'])
+def bluetooth_test():
+    """Test Bluetooth audio output"""
+    try:
+        if audio and hasattr(audio, 'test_bluetooth_audio'):
+            success = audio.test_bluetooth_audio()
+            return jsonify({
+                'success': success,
+                'message': 'Audio test completed' if success else 'Audio test failed'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Bluetooth test not available'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/bluetooth/volume', methods=['POST'])
+def bluetooth_volume():
+    """Set Bluetooth audio volume"""
+    try:
+        if not audio:
+            return jsonify({
+                'success': False,
+                'message': 'Audio system not available'
+            }), 500
+
+        data = request.get_json()
+        volume = data.get('volume', 0.7)
+
+        # Validate volume range
+        volume = max(0.0, min(1.0, float(volume)))
+
+        audio.set_volume(volume)
+
+        socketio.emit('volume_update', {
+            'volume': volume
+        })
+
+        return jsonify({
+            'success': True,
+            'volume': volume,
+            'message': f'Volume set to {int(volume * 100)}%'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+# Audio control endpoints
+@app.route('/api/audio/play', methods=['POST'])
+def play_audio():
+    """Play a specific sound"""
+    try:
+        data = request.get_json()
+        sound_name = data.get('sound')
+
+        if not sound_name:
+            return jsonify({
+                'success': False,
+                'message': 'Sound name required'
+            }), 400
+
+        if audio:
+            success = audio.play_sound(sound_name)
+            return jsonify({
+                'success': success,
+                'message': f'Playing {sound_name}' if success else f'Failed to play {sound_name}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Audio system not available'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/audio/emotion', methods=['POST'])
+def play_emotion():
+    """Play Wall-E emotion sound"""
+    try:
+        data = request.get_json()
+        emotion = data.get('emotion')
+
+        if not emotion:
+            return jsonify({
+                'success': False,
+                'message': 'Emotion required'
+            }), 400
+
+        if audio and hasattr(audio, 'play_wall_e_emotion'):
+            audio.play_wall_e_emotion(emotion)
+            return jsonify({
+                'success': True,
+                'message': f'Playing {emotion} emotion'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Audio system not available'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/audio/speak', methods=['POST'])
+def speak_text():
+    """Text-to-speech"""
+    try:
+        data = request.get_json()
+        text = data.get('text')
+
+        if not text:
+            return jsonify({
+                'success': False,
+                'message': 'Text required'
+            }), 400
+
+        if audio and hasattr(audio, 'speak_text'):
+            audio.speak_text(text)
+            return jsonify({
+                'success': True,
+                'message': f'Speaking: {text}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Text-to-speech not available'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
+@app.route('/api/audio/sounds')
+def get_available_sounds():
+    """Get list of available sounds"""
+    try:
+        if audio and hasattr(audio, 'get_available_sounds'):
+            sounds = audio.get_available_sounds()
+            return jsonify({
+                'success': True,
+                'sounds': sounds
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'sounds': [],
+                'message': 'Audio system not available'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'sounds': [],
+            'message': str(e)
+        }), 500
+
+
 def process_command(command, params):
     """Process Wall-E commands"""
     global walle_state
-    
+
     if command == 'wake_up':
         walle_state['mode'] = 'greeting'
         if arduino:
             arduino.send_command('w')
         if audio:
-            audio.play_sound('startup')
+            audio.play_wall_e_emotion('startup')
         return "Wall-E is waking up!"
-    
+
     elif command == 'explore':
         walle_state['mode'] = 'exploring'
         if arduino:
             arduino.send_command('e')
         if audio:
-            audio.play_sound('curious')
+            audio.play_wall_e_emotion('curious')
         return "Wall-E is exploring!"
-    
+
+    elif command == 'greeting':
+        walle_state['mode'] = 'greeting'
+        if arduino:
+            arduino.send_command('g')
+        if audio:
+            audio.play_wall_e_emotion('greeting')
+        return "Wall-E says hello!"
+
     elif command == 'stop':
         walle_state['mode'] = 'idle'
+        walle_state['motors']['left_speed'] = 0
+        walle_state['motors']['right_speed'] = 0
         if arduino:
-            arduino.send_command('s')
+            arduino.stop_all()
+        if audio:
+            audio.play_sound('beep')
         return "Wall-E stopped"
-    
+
     elif command == 'move':
         direction = params.get('direction')
-        if arduino:
-            arduino.send_command(direction.upper())
+        walle_state['mode'] = 'moving'
+
+        # Map directions to motor speeds
+        speed = 150  # Default speed
+        if direction == 'forward':
+            walle_state['motors']['left_speed'] = speed
+            walle_state['motors']['right_speed'] = speed
+            if arduino:
+                arduino.set_motor_speeds(speed, speed)
+        elif direction == 'backward':
+            walle_state['motors']['left_speed'] = -speed
+            walle_state['motors']['right_speed'] = -speed
+            if arduino:
+                arduino.set_motor_speeds(-speed, -speed)
+        elif direction == 'left':
+            walle_state['motors']['left_speed'] = -speed // 2
+            walle_state['motors']['right_speed'] = speed // 2
+            if arduino:
+                arduino.set_motor_speeds(-speed // 2, speed // 2)
+        elif direction == 'right':
+            walle_state['motors']['left_speed'] = speed // 2
+            walle_state['motors']['right_speed'] = -speed // 2
+            if arduino:
+                arduino.set_motor_speeds(speed // 2, -speed // 2)
+
         return f"Moving {direction}"
-    
+
     elif command == 'servo':
         servo = params.get('servo')
         angle = params.get('angle', 90)
@@ -165,15 +572,20 @@ def process_command(command, params):
             arduino.set_servo(servo, angle)
         walle_state['servo_positions'][servo] = angle
         return f"Set {servo} to {angle}°"
-    
+
     elif command == 'sound':
         sound = params.get('sound')
         if audio:
-            audio.play_sound(sound)
+            if hasattr(audio, 'play_wall_e_emotion') and sound in ['happy', 'sad', 'curious', 'worried', 'excited',
+                                                                   'greeting']:
+                audio.play_wall_e_emotion(sound)
+            else:
+                audio.play_sound(sound)
         return f"Playing sound: {sound}"
-    
+
     else:
         raise ValueError(f"Unknown command: {command}")
+
 
 # WebSocket events
 @socketio.on('connect')
@@ -182,10 +594,17 @@ def handle_connect():
     print(f"Client connected: {request.sid}")
     emit('status_update', walle_state)
 
+    # Send initial Bluetooth status if available
+    if audio and hasattr(audio, 'get_bluetooth_status'):
+        bluetooth_status = audio.get_bluetooth_status()
+        emit('bluetooth_status_update', bluetooth_status)
+
+
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
     print(f"Client disconnected: {request.sid}")
+
 
 @socketio.on('manual_control')
 def handle_manual_control(data):
@@ -193,28 +612,38 @@ def handle_manual_control(data):
     try:
         command = data.get('command')
         value = data.get('value', 0)
-        
+
         if command == 'motor_control':
             left_speed = data.get('left_speed', 0)
             right_speed = data.get('right_speed', 0)
-            
+
             if arduino:
                 arduino.set_motor_speeds(left_speed, right_speed)
-            
+
             walle_state['motors']['left_speed'] = left_speed
             walle_state['motors']['right_speed'] = right_speed
-        
+
         elif command.startswith('servo_'):
             servo_name = command.replace('servo_', '')
             if arduino:
                 arduino.set_servo(servo_name, value)
             walle_state['servo_positions'][servo_name] = value
-        
+
+        elif command == 'emergency_stop':
+            walle_state['mode'] = 'idle'
+            walle_state['motors']['left_speed'] = 0
+            walle_state['motors']['right_speed'] = 0
+            if arduino:
+                arduino.stop_all()
+            if audio:
+                audio.play_wall_e_emotion('worried')
+
         # Broadcast update to all clients
         emit('status_update', walle_state, broadcast=True)
-        
+
     except Exception as e:
         emit('error', {'message': str(e)})
+
 
 def sensor_update_thread():
     """Background thread to update sensor readings"""
@@ -227,59 +656,81 @@ def sensor_update_thread():
                 walle_state['connected'] = True
             else:
                 walle_state['connected'] = False
-            
+
             # Update battery level
             if battery:
-                walle_state['battery_level'] = battery.get_battery_percentage()
-            
+                battery_status = battery.get_battery_status()
+                walle_state['battery_level'] = battery_status['percentage']
+                walle_state['battery_voltage'] = battery_status['voltage']
+                walle_state['battery_status'] = battery_status['status']
+
             # Update display
-            if display:
+            if display and display.available:
                 display.update_status(walle_state)
-            
+
             # Broadcast to all connected clients
             walle_state['last_update'] = datetime.now().isoformat()
             socketio.emit('status_update', walle_state)
-            
+
         except Exception as e:
             print(f"Sensor update error: {e}")
-        
+
         time.sleep(0.5)  # Update every 500ms
+
 
 def play_startup_sequence():
     """Play Wall-E startup sequence"""
+    time.sleep(2)  # Wait for system to stabilize
+
     if audio:
-        time.sleep(1)
-        audio.play_sound('startup')
-    
-    if display:
-        display.show_message("WALL-E", "ONLINE")
+        audio.play_wall_e_emotion('startup')
+
+    if display and display.available:
+        display.show_message("WALL-E", "ONLINE", duration=3)
+
+
+def cleanup_on_exit():
+    """Clean up resources on exit"""
+    print("Cleaning up Wall-E resources...")
+
+    if arduino:
+        arduino.close()
+
+    if audio and hasattr(audio, 'cleanup'):
+        audio.cleanup()
+
+    if display and hasattr(display, 'cleanup'):
+        display.cleanup()
+
+    if battery and hasattr(battery, 'cleanup'):
+        battery.cleanup()
+
 
 if __name__ == '__main__':
     print("=== Wall-E Control System Starting ===")
     print("Repository: https://github.com/Vladdudu12/wall-e-control")
     print(f"Access at: http://wall-e.local:5000")
     print("=" * 40)
-    
+
     # Initialize hardware
     initialize_hardware()
-    
+
     # Start background threads
     sensor_thread = threading.Thread(target=sensor_update_thread, daemon=True)
     sensor_thread.start()
-    
+
     # Play startup sequence
     startup_thread = threading.Thread(target=play_startup_sequence, daemon=True)
     startup_thread.start()
-    
+
     # Start web server
     try:
-        socketio.run(app, 
-                    host='0.0.0.0',  # Allow external connections
-                    port=5000, 
-                    debug=False,     # Set to True for development
-                    allow_unsafe_werkzeug=True)
+        socketio.run(app,
+                     host='0.0.0.0',  # Allow external connections
+                     port=5000,
+                     debug=False,  # Set to True for development
+                     allow_unsafe_werkzeug=True)
     except KeyboardInterrupt:
         print("\nShutting down Wall-E control system...")
-        if arduino:
-            arduino.close()
+        cleanup_on_exit()
         print("Wall-E offline. Goodbye!")
