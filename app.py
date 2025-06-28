@@ -72,40 +72,81 @@ battery = None
 
 # ESP32-CAM Discovery and Connection Functions
 def discover_esp32_cam():
-    """Auto-discover ESP32-CAM on the network"""
+    """Auto-discover ESP32-CAM on the network with better scanning"""
     global ESP32_CAM_IP
 
     print("Scanning for ESP32-CAM...")
 
-    # Get local network range
+    # Get local network range from Pi's IP
     try:
-        # Get Pi's IP to determine network range
-        hostname = socket.gethostname()
-        pi_ip = socket.gethostbyname(hostname)
+        # Get Pi's actual IP address
+        import subprocess
+        result = subprocess.run(['hostname', '-I'], capture_output=True, text=True)
+        pi_ip = result.stdout.strip().split()[0]
         network_base = '.'.join(pi_ip.split('.')[:-1])
-        print(f"Scanning network: {network_base}.x")
-    except:
-        network_base = CAMERA_SCAN_RANGE
+        print(f"Pi IP: {pi_ip}, scanning network: {network_base}.x")
+    except Exception as e:
+        print(f"Could not get Pi IP: {e}, using fallback ranges")
+        # Try common network ranges
+        network_bases = ["192.168.1", "192.168.0", "192.168.50", "10.0.0", "172.16.0"]
+    else:
+        network_bases = [network_base]
 
-    # Scan common IP addresses
-    for i in range(100, 200):  # Scan .100 to .199
-        try:
-            test_ip = f"{network_base}.{i}"
-            response = requests.get(f"http://{test_ip}/status", timeout=2)
+    # Scan each network range
+    for network_base in network_bases:
+        print(f"Scanning {network_base}.x network...")
 
-            if response.status_code == 200:
-                data = response.json()
-                if 'mac' in data and 'ip' in data:
-                    print(f"✓ Found ESP32-CAM at {test_ip}")
-                    ESP32_CAM_IP = test_ip
-                    return test_ip
+        # Scan range 100-200 (common for DHCP)
+        for i in range(100, 201):
+            try:
+                test_ip = f"{network_base}.{i}"
+                print(f"Testing {test_ip}...")
 
-        except:
-            continue
+                response = requests.get(f"http://{test_ip}/status", timeout=2)
 
-    print("✗ ESP32-CAM not found on network")
+                if response.status_code == 200:
+                    try:
+                        data = response.json()
+                        # Check if it's our ESP32-CAM by looking for specific fields
+                        if ('mac' in data and 'ip' in data) or ('camera' in data and 'Wall-E' in str(data)):
+                            print(f"✓ Found ESP32-CAM at {test_ip}")
+                            print(f"Response: {data}")
+                            ESP32_CAM_IP = test_ip
+                            return test_ip
+                    except:
+                        # Not JSON response, skip
+                        continue
+
+            except Exception as e:
+                # Connection failed, continue scanning
+                continue
+
+        # Also try some common static IP ranges
+        static_ranges = [2, 10, 20, 50, 100, 150, 181, 200, 254]
+        for i in static_ranges:
+            try:
+                test_ip = f"{network_base}.{i}"
+                if test_ip not in [f"{network_base}.{j}" for j in range(100, 201)]:  # Skip if already tested
+                    print(f"Testing static IP {test_ip}...")
+
+                    response = requests.get(f"http://{test_ip}/status", timeout=2)
+
+                    if response.status_code == 200:
+                        try:
+                            data = response.json()
+                            if ('mac' in data and 'ip' in data) or ('camera' in data and 'Wall-E' in str(data)):
+                                print(f"✓ Found ESP32-CAM at {test_ip}")
+                                print(f"Response: {data}")
+                                ESP32_CAM_IP = test_ip
+                                return test_ip
+                        except:
+                            continue
+
+            except Exception as e:
+                continue
+
+    print("✗ ESP32-CAM not found on any network")
     return None
-
 
 def check_camera_connection():
     """Check if ESP32-CAM is accessible"""
