@@ -14,6 +14,14 @@ import json
 import time
 import threading
 from datetime import datetime
+import requests
+import socket
+import os
+from threading import Thread
+
+ESP32_CAM_IP = None  # Will be auto-discovered
+ESP32_CAM_PORT = 80
+CAMERA_SCAN_RANGE = "192.168.1"  # Adjust to your network range
 
 # Wall-E modules
 try:
@@ -62,6 +70,55 @@ display = None
 battery = None
 
 
+# ESP32-CAM Discovery and Connection Functions
+def discover_esp32_cam():
+    """Auto-discover ESP32-CAM on the network"""
+    global ESP32_CAM_IP
+
+    print("Scanning for ESP32-CAM...")
+
+    # Get local network range
+    try:
+        # Get Pi's IP to determine network range
+        hostname = socket.gethostname()
+        pi_ip = socket.gethostbyname(hostname)
+        network_base = '.'.join(pi_ip.split('.')[:-1])
+        print(f"Scanning network: {network_base}.x")
+    except:
+        network_base = CAMERA_SCAN_RANGE
+
+    # Scan common IP addresses
+    for i in range(100, 200):  # Scan .100 to .199
+        try:
+            test_ip = f"{network_base}.{i}"
+            response = requests.get(f"http://{test_ip}/status", timeout=2)
+
+            if response.status_code == 200:
+                data = response.json()
+                if 'mac' in data and 'ip' in data:
+                    print(f"✓ Found ESP32-CAM at {test_ip}")
+                    ESP32_CAM_IP = test_ip
+                    return test_ip
+
+        except:
+            continue
+
+    print("✗ ESP32-CAM not found on network")
+    return None
+
+
+def check_camera_connection():
+    """Check if ESP32-CAM is accessible"""
+    if not ESP32_CAM_IP:
+        return False
+
+    try:
+        response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=3)
+        return response.status_code == 200
+    except:
+        return False
+
+
 def initialize_hardware():
     """Initialize all Wall-E hardware components"""
     global arduino, audio, display, battery
@@ -71,6 +128,9 @@ def initialize_hardware():
         arduino = ArduinoController()
         walle_state['connected'] = arduino.is_connected()
         print("✓ Arduino controller initialized")
+
+        os.makedirs("static/captures", exist_ok=True)
+
     except Exception as e:
         print(f"✗ Arduino controller failed: {e}")
 
@@ -104,6 +164,21 @@ def initialize_hardware():
 
     except Exception as e:
         print(f"✗ Battery monitor failed: {e}")
+
+    try:
+        # Create captures directory
+        os.makedirs("static/captures", exist_ok=True)
+
+        # Start camera discovery thread
+        camera_thread = Thread(target=camera_monitor_thread, daemon=True)
+        camera_thread.start()
+
+        # Try initial discovery
+        discover_esp32_cam()
+        print("✓ Camera discovery initialized")
+
+    except Exception as e:
+        print(f"✗ Camera discovery failed: {e}")
 
 
 def bluetooth_status_callback(connected, message):
@@ -499,6 +574,222 @@ def get_available_sounds():
             'sounds': [],
             'message': str(e)
         }), 500
+
+
+@app.route('/api/camera/status')
+def camera_status():
+    """Get camera connection status"""
+    try:
+        if not ESP32_CAM_IP:
+            discover_esp32_cam()
+
+        if ESP32_CAM_IP and check_camera_connection():
+            # Get camera details
+            response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=3)
+            cam_data = response.json()
+
+            return jsonify({
+                'success': True,
+                'connected': True,
+                'ip': ESP32_CAM_IP,
+                'stream_url': f"http://{ESP32_CAM_IP}/stream",
+                'capture_url': f"http://{ESP32_CAM_IP}/capture",
+                'details': cam_data
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'connected': False,
+                'message': 'ESP32-CAM not found or not responding'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'connected': False,
+            'message': str(e)
+        })
+
+
+@app.route('/api/camera/discover', methods=['POST'])
+def discover_camera():
+    """Manually trigger camera discovery"""
+    try:
+        discovered_ip = discover_esp32_cam()
+
+        if discovered_ip:
+            return jsonify({
+                'success': True,
+                'ip': discovered_ip,
+                'message': f'Camera found at {discovered_ip}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'No ESP32-CAM found on network'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
+
+
+@app.route('/api/camera/capture', methods=['POST'])
+def capture_photo():
+    """Capture a photo from ESP32-CAM"""
+    try:
+        if not ESP32_CAM_IP:
+            return jsonify({
+                'success': False,
+                'message': 'Camera not connected'
+            })
+
+        # Trigger capture and get image
+        response = requests.get(f"http://{ESP32_CAM_IP}/capture", timeout=10)
+
+        if response.status_code == 200:
+            # Save image with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"walle_capture_{timestamp}.jpg"
+
+            # Create captures directory if it doesn't exist
+            captures_dir = "static/captures"
+            os.makedirs(captures_dir, exist_ok=True)
+
+            filepath = os.path.join(captures_dir, filename)
+
+            with open(filepath, 'wb') as f:
+                f.write(response.content)
+
+            return jsonify({
+                'success': True,
+                'filename': filename,
+                'filepath': filepath,
+                'url': f'/static/captures/{filename}',
+                'message': 'Photo captured successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to capture photo'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
+
+
+@app.route('/api/camera/led', methods=['POST'])
+def control_camera_led():
+    """Control ESP32-CAM LED"""
+    try:
+        if not ESP32_CAM_IP:
+            return jsonify({
+                'success': False,
+                'message': 'Camera not connected'
+            })
+
+        data = request.get_json()
+        state = data.get('state', 'off')  # on/off
+
+        response = requests.get(f"http://{ESP32_CAM_IP}/led?state={state}", timeout=3)
+
+        if response.status_code == 200:
+            return jsonify({
+                'success': True,
+                'state': state,
+                'message': f'LED turned {state}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to control LED'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
+
+
+@app.route('/api/camera/settings', methods=['GET', 'POST'])
+def camera_settings():
+    """Get or update camera settings"""
+    try:
+        if not ESP32_CAM_IP:
+            return jsonify({
+                'success': False,
+                'message': 'Camera not connected'
+            })
+
+        if request.method == 'GET':
+            # Get current settings
+            response = requests.get(f"http://{ESP32_CAM_IP}/settings", timeout=3)
+
+            if response.status_code == 200:
+                settings = response.json()
+                return jsonify({
+                    'success': True,
+                    'settings': settings
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Failed to get camera settings'
+                })
+
+        elif request.method == 'POST':
+            # Update settings (if ESP32-CAM supports it)
+            data = request.get_json()
+            # This would require additional ESP32-CAM endpoints for setting changes
+            return jsonify({
+                'success': True,
+                'message': 'Settings update feature coming soon'
+            })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
+
+
+# Background monitoring thread
+def camera_monitor_thread():
+    """Monitor camera connection status"""
+    global ESP32_CAM_IP
+
+    while True:
+        try:
+            # Try to discover camera if not found
+            if not ESP32_CAM_IP:
+                discover_esp32_cam()
+
+            # Check connection if IP is known
+            if ESP32_CAM_IP:
+                connected = check_camera_connection()
+
+                # Broadcast camera status to web clients
+                socketio.emit('camera_status_update', {
+                    'connected': connected,
+                    'ip': ESP32_CAM_IP if connected else None,
+                    'stream_url': f"http://{ESP32_CAM_IP}/stream" if connected else None
+                })
+
+                # If disconnected, clear IP to trigger rediscovery
+                if not connected:
+                    print(f"Lost connection to ESP32-CAM at {ESP32_CAM_IP}")
+                    ESP32_CAM_IP = None
+
+        except Exception as e:
+            print(f"Camera monitor error: {e}")
+
+        time.sleep(30)  # Check every 30 seconds
 
 
 def process_command(command, params):

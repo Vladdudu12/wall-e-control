@@ -9,3 +9,4 @@ RPi.GPIO
 adafruit-blinka
 adafruit-circuitpython-busdevice
 numpy==1.24.3
+requests==2.31.0
