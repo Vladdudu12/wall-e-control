@@ -88,7 +88,7 @@ def initialize_hardware():
 
     try:
         # Initialize OLED display
-        display = EnhancedDisplayController()
+        display = EnhancedDisplayController(rotation=90)
         print("✓ Display controller initialized")
     except Exception as e:
         print(f"✗ Display controller failed: {e}")

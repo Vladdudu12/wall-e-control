@@ -21,7 +21,7 @@ except ImportError as e:
 
 
 class EnhancedDisplayController:
-    def __init__(self, width=128, height=64, address=0x3C, auto_detect=True):
+    def __init__(self, width=128, height=64, address=0x3C, auto_detect=True, rotation=0):
         """Initialize enhanced display controller with vertical solar capabilities"""
         self.width = width
         self.height = height
@@ -31,6 +31,14 @@ class EnhancedDisplayController:
         self.last_battery_level = 100
         self.animation_frame = 0
         self.display_mode = 'solar'  # Default to solar mode
+
+        self.rotation = rotation
+        if rotation in [90, 270]:
+            self.width = height  # 64 pixels wide
+            self.height = width  # 128 pixels tall
+        else:
+            self.width = width  # 128 pixels wide
+            self.height = height  # 64 pixels tall
 
         if not I2C_AVAILABLE:
             print("✗ Display controller: Required libraries not installed")
@@ -42,6 +50,16 @@ class EnhancedDisplayController:
         if auto_detect:
             print(f"Display not found at 0x{address:02X}, trying auto-detection...")
             self._auto_detect_display()
+
+    def rotate_image_if_needed(self, image):
+        """Rotate image based on rotation setting"""
+        if self.rotation == 90:
+            return image.transpose(Image.ROTATE_90)
+        elif self.rotation == 180:
+            return image.transpose(Image.ROTATE_180)
+        elif self.rotation == 270:
+            return image.transpose(Image.ROTATE_270)
+        return image
 
     def _auto_detect_display(self):
         """Auto-detect display configuration"""
@@ -313,7 +331,8 @@ class EnhancedDisplayController:
             draw.text((2, bottom_y), "WALL-E", font=tiny_font, fill=255)
             draw.text((85, bottom_y), datetime.now().strftime("%H:%M"), font=tiny_font, fill=255)
 
-            self.display.image(image)
+            rotated_image = self.rotate_image_if_needed(image)
+            self.display.image(rotated_image)
             self.display.show()
 
             # Increment animation frame
