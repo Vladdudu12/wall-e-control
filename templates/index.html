@@ -224,6 +224,153 @@
                 gap: 10px;
             }
         }
+
+        /* Camera Control Styles */
+.camera-panel {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 25px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 20px;
+}
+
+.camera-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.camera-connected {
+    background: rgba(76, 175, 80, 0.2);
+    border: 1px solid #4CAF50;
+}
+
+.camera-disconnected {
+    background: rgba(244, 67, 54, 0.2);
+    border: 1px solid #f44336;
+}
+
+.camera-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    height: 240px;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#camera-stream {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.video-placeholder {
+    text-align: center;
+    color: #666;
+    font-size: 1.2em;
+}
+
+.video-placeholder > div:first-child {
+    font-size: 3em;
+    margin-bottom: 10px;
+}
+
+.loading-text {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin-top: 10px;
+}
+
+.camera-control-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.camera-control-buttons button {
+    flex: 1;
+    padding: 10px;
+    background: linear-gradient(45deg, #607D8B, #455A64);
+    border: none;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.camera-control-buttons button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(96, 125, 139, 0.3);
+}
+
+.camera-control-buttons button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.camera-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    font-size: 0.9em;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+}
+
+.camera-icon {
+    font-size: 1.5em;
+    margin-right: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .video-container {
+        height: 180px;
+    }
+
+    .camera-status {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .camera-controls {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.loading-text {
+    animation: pulse 2s infinite;
+}
     </style>
 </head>
 <body>
@@ -337,6 +484,59 @@
                 </div>
             </div>
         </div>
+
+        <div class="control-panel camera-panel">
+    <div class="panel-title">📹 Wall-E Camera View</div>
+
+    <!-- Camera Status -->
+    <div class="camera-status" id="camera-status">
+        <div>
+            <span class="camera-icon">📷</span>
+            <span class="status-text" id="camera-status-text">Checking camera...</span>
+        </div>
+        <div class="camera-controls">
+            <button class="scan-btn" onclick="discoverCamera()" id="discover-btn">
+                🔍 Find Camera
+            </button>
+            <button class="test-btn" onclick="capturePhoto()" id="capture-btn" disabled>
+                📸 Capture
+            </button>
+        </div>
+    </div>
+
+    <!-- Video Stream -->
+    <div class="video-container" id="video-container">
+        <img id="camera-stream" src="" alt="Camera stream will appear here" style="display: none;">
+        <div class="video-placeholder" id="video-placeholder">
+            <div>📹</div>
+            <div>Camera stream will appear here</div>
+            <div class="loading-text">Click "Find Camera" to connect</div>
+        </div>
+    </div>
+
+    <!-- Camera Controls -->
+    <div class="camera-control-buttons">
+        <button class="control-btn" onclick="toggleCameraLED()" id="led-btn">
+            💡 LED Off
+        </button>
+        <button class="control-btn" onclick="refreshStream()" id="refresh-btn" disabled>
+            🔄 Refresh
+        </button>
+    </div>
+
+    <!-- Camera Info -->
+    <div class="camera-info" id="camera-info" style="display: none;">
+        <div class="info-item">
+            <span>IP:</span>
+            <span id="camera-ip">--</span>
+        </div>
+        <div class="info-item">
+            <span>Signal:</span>
+            <span id="camera-signal">--</span>
+        </div>
+    </div>
+</div>
+
 
         <button class="emergency-stop" onclick="emergencyStop()">
             🚨 EMERGENCY STOP 🚨
@@ -498,5 +698,382 @@
             addLogEntry('Wall-E Control Interface Ready');
         });
     </script>
+
+    <script>
+// Camera control variables
+let cameraConnected = false;
+let cameraIP = null;
+let streamURL = null;
+let ledState = false;
+
+// Initialize camera interface
+function initializeCameraInterface() {
+    updateCameraStatus();
+    setInterval(updateCameraStatus, 15000); // Check every 15 seconds
+}
+
+// Update camera connection status
+function updateCameraStatus() {
+    fetch('/api/camera/status')
+        .then(response => response.json())
+        .then(data => {
+            const statusElement = document.getElementById('camera-status');
+            const statusText = document.getElementById('camera-status-text');
+            const streamImg = document.getElementById('camera-stream');
+            const placeholder = document.getElementById('video-placeholder');
+            const infoPanel = document.getElementById('camera-info');
+
+            if (data.success && data.connected) {
+                // Camera connected
+                statusElement.className = 'camera-status camera-connected';
+                statusText.textContent = 'Camera connected';
+
+                cameraConnected = true;
+                cameraIP = data.ip;
+                streamURL = data.stream_url;
+
+                // Show video stream
+                streamImg.src = streamURL;
+                streamImg.style.display = 'block';
+                placeholder.style.display = 'none';
+
+                // Enable controls
+                document.getElementById('capture-btn').disabled = false;
+                document.getElementById('refresh-btn').disabled = false;
+
+                // Show camera info
+                document.getElementById('camera-ip').textContent = data.ip;
+                if (data.details && data.details.rssi) {
+                    document.getElementById('camera-signal').textContent = data.details.rssi + ' dBm';
+                }
+                infoPanel.style.display = 'grid';
+
+                addLogEntry(`Camera connected at ${data.ip}`);
+
+            } else {
+                // Camera disconnected
+                statusElement.className = 'camera-status camera-disconnected';
+                statusText.textContent = 'Camera not connected';
+
+                cameraConnected = false;
+                cameraIP = null;
+                streamURL = null;
+
+                // Hide video stream
+                streamImg.style.display = 'none';
+                placeholder.style.display = 'block';
+                placeholder.innerHTML = `
+                    <div>📹</div>
+                    <div>Camera offline</div>
+                    <div class="loading-text">Click "Find Camera" to reconnect</div>
+                `;
+
+                // Disable controls
+                document.getElementById('capture-btn').disabled = true;
+                document.getElementById('refresh-btn').disabled = true;
+
+                // Hide camera info
+                infoPanel.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error checking camera status:', error);
+        });
+}
+
+// Discover ESP32-CAM on network
+function discoverCamera() {
+    const discoverBtn = document.getElementById('discover-btn');
+    const placeholder = document.getElementById('video-placeholder');
+
+    discoverBtn.disabled = true;
+    discoverBtn.textContent = '🔍 Searching...';
+
+    placeholder.innerHTML = `
+        <div>🔍</div>
+        <div>Scanning network...</div>
+        <div class="loading-text">Looking for ESP32-CAM...</div>
+    `;
+
+    fetch('/api/camera/discover', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addLogEntry(`Camera discovered at ${data.ip}`);
+                setTimeout(updateCameraStatus, 2000); // Update status after discovery
+            } else {
+                addLogEntry('Camera discovery failed: ' + data.message, 'error');
+                placeholder.innerHTML = `
+                    <div>❌</div>
+                    <div>Camera not found</div>
+                    <div class="loading-text">Make sure ESP32-CAM is powered and connected to WiFi</div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Camera discovery error:', error);
+            addLogEntry('Camera discovery network error', 'error');
+        })
+        .finally(() => {
+            discoverBtn.disabled = false;
+            discoverBtn.textContent = '🔍 Find Camera';
+        });
+}
+
+// Capture photo from ESP32-CAM
+function capturePhoto() {
+    const captureBtn = document.getElementById('capture-btn');
+
+    captureBtn.disabled = true;
+    captureBtn.textContent = '📸 Capturing...';
+
+    fetch('/api/camera/capture', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                addLogEntry(`Photo captured: ${data.filename}`);
+
+                // Show capture notification
+                showCaptureNotification(data.filepath);
+
+                // Flash effect on video
+                flashCaptureEffect();
+
+            } else {
+                addLogEntry('Photo capture failed: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Photo capture error:', error);
+            addLogEntry('Photo capture network error', 'error');
+        })
+        .finally(() => {
+            captureBtn.disabled = false;
+            captureBtn.textContent = '📸 Capture';
+        });
+}
+
+// Toggle ESP32-CAM LED
+function toggleCameraLED() {
+    if (!cameraConnected) {
+        addLogEntry('Camera not connected', 'error');
+        return;
+    }
+
+    const newState = ledState ? 'off' : 'on';
+
+    fetch('/api/camera/led', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ state: newState })
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                ledState = !ledState;
+                const ledBtn = document.getElementById('led-btn');
+                ledBtn.textContent = ledState ? '💡 LED On' : '💡 LED Off';
+                addLogEntry(`Camera LED turned ${newState}`);
+            } else {
+                addLogEntry('LED control failed: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('LED control error:', error);
+            addLogEntry('LED control network error', 'error');
+        });
+}
+
+// Refresh video stream
+function refreshStream() {
+    if (!cameraConnected || !streamURL) {
+        addLogEntry('No camera stream to refresh', 'error');
+        return;
+    }
+
+    const streamImg = document.getElementById('camera-stream');
+    const refreshBtn = document.getElementById('refresh-btn');
+
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = '🔄 Refreshing...';
+
+    // Force reload the stream by adding timestamp
+    const timestamp = new Date().getTime();
+    streamImg.src = streamURL + '?t=' + timestamp;
+
+    setTimeout(() => {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = '🔄 Refresh';
+        addLogEntry('Video stream refreshed');
+    }, 2000);
+}
+
+// Show capture notification
+function showCaptureNotification(filepath) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = 'capture-notification';
+    notification.innerHTML = `
+        <div>📸 Photo Captured!</div>
+        <div class="notification-text">Saved to ${filepath}</div>
+    `;
+
+    // Add notification styles if not already added
+    if (!document.getElementById('notification-styles')) {
+        const style = document.createElement('style');
+        style.id = 'notification-styles';
+        style.textContent = `
+            .capture-notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(76, 175, 80, 0.9);
+                color: white;
+                padding: 15px 20px;
+                border-radius: 10px;
+                z-index: 1000;
+                font-weight: bold;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+                animation: slideInRight 0.3s ease-out;
+            }
+
+            .notification-text {
+                font-size: 0.9em;
+                opacity: 0.8;
+                margin-top: 5px;
+            }
+
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideOutRight {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    document.body.appendChild(notification);
+
+    // Remove notification after 3 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease-in';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Flash effect for photo capture
+function flashCaptureEffect() {
+    const videoContainer = document.getElementById('video-container');
+
+    // Create flash overlay
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: white;
+        opacity: 0.8;
+        pointer-events: none;
+        z-index: 10;
+    `;
+
+    videoContainer.appendChild(flash);
+
+    // Remove flash after animation
+    setTimeout(() => {
+        if (flash.parentNode) {
+            flash.parentNode.removeChild(flash);
+        }
+    }, 200);
+}
+
+// Handle camera status updates from server
+socket.on('camera_status_update', function(data) {
+    const statusElement = document.getElementById('camera-status');
+    const statusText = document.getElementById('camera-status-text');
+
+    if (data.connected) {
+        statusElement.className = 'camera-status camera-connected';
+        statusText.textContent = `Camera online (${data.ip})`;
+        cameraConnected = true;
+        cameraIP = data.ip;
+        streamURL = data.stream_url;
+
+        // Auto-start stream if not already showing
+        const streamImg = document.getElementById('camera-stream');
+        if (streamImg.style.display === 'none') {
+            updateCameraStatus();
+        }
+    } else {
+        statusElement.className = 'camera-status camera-disconnected';
+        statusText.textContent = 'Camera disconnected';
+        cameraConnected = false;
+        cameraIP = null;
+        streamURL = null;
+    }
+});
+
+// Handle stream errors
+function handleStreamError() {
+    const streamImg = document.getElementById('camera-stream');
+    const placeholder = document.getElementById('video-placeholder');
+
+    streamImg.style.display = 'none';
+    placeholder.style.display = 'block';
+    placeholder.innerHTML = `
+        <div>⚠️</div>
+        <div>Stream error</div>
+        <div class="loading-text">Click "Refresh" to retry</div>
+    `;
+
+    addLogEntry('Video stream connection lost', 'error');
+}
+
+// Add error handler to stream image
+document.addEventListener('DOMContentLoaded', function() {
+    const streamImg = document.getElementById('camera-stream');
+    streamImg.onerror = handleStreamError;
+    streamImg.onload = function() {
+        // Stream loaded successfully
+        if (cameraConnected) {
+            addLogEntry('Video stream connected');
+        }
+    };
+});
+</script>
+
+<!-- Add camera initialization to your DOMContentLoaded event -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    initializeBluetoothInterface();
+    initializeCameraInterface(); // Add this line
+    addLogEntry('Wall-E Control Interface Ready');
+});
+</script>
+
 </body>
 </html>
