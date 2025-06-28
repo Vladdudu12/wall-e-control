@@ -586,7 +586,7 @@ def camera_status():
 
         if ESP32_CAM_IP and check_camera_connection():
             # Get camera details
-            response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=3)
+            response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=10)
             cam_data = response.json()
 
             return jsonify({
