@@ -72,29 +72,69 @@ battery = None
 
 # ESP32-CAM Discovery and Connection Functions
 def discover_esp32_cam():
-    """Discover ESP32-CAM on Wall-E Access Point network"""
+    """Enhanced ESP32-CAM discovery for Wall-E Access Point network"""
     global ESP32_CAM_IP
 
-    print("Scanning for ESP32-CAM on Wall-E Access Point...")
+    print("🔍 Scanning for ESP32-CAM on Wall-E Access Point...")
 
     # In AP mode, we know the network range
     network_base = "192.168.4"
 
-    # Common DHCP range for ESP32-CAM
+    # Try common IP addresses first (faster discovery)
+    common_ips = [
+        "192.168.4.100",  # Most common DHCP assignment
+        "192.168.4.101",
+        "192.168.4.102",
+        "192.168.4.103",
+        "192.168.4.10",
+        "192.168.4.20",
+        "192.168.4.50"
+    ]
+
+    print("Testing common ESP32-CAM IP addresses...")
+    for test_ip in common_ips:
+        try:
+            print(f"Testing {test_ip}...")
+            response = requests.get(f"http://{test_ip}/status", timeout=3)
+
+            if response.status_code == 200:
+                data = response.json()
+                # Enhanced detection - check for ESP32-CAM specific fields
+                if ('camera' in data and 'Wall-E' in str(data)) or \
+                        ('ESP32' in str(data)) or \
+                        ('version' in data and 'Adaptive' in str(data)):
+                    print(f"✅ Found ESP32-CAM at {test_ip}")
+                    print(f"Camera details: {data}")
+                    ESP32_CAM_IP = test_ip
+                    return test_ip
+
+        except Exception as e:
+            # Silently continue to next IP
+            continue
+
+    # If not found in common IPs, scan full DHCP range
+    print("Scanning full DHCP range 192.168.4.10-50...")
     dhcp_range = range(10, 51)  # 192.168.4.10 to 192.168.4.50
 
     for i in dhcp_range:
         try:
             test_ip = f"{network_base}.{i}"
+
+            # Skip IPs we already tested
+            if test_ip in common_ips:
+                continue
+
             print(f"Testing {test_ip}...")
 
-            response = requests.get(f"http://{test_ip}/status", timeout=5)
+            response = requests.get(f"http://{test_ip}/status", timeout=2)
 
             if response.status_code == 200:
                 data = response.json()
                 # Check if it's our ESP32-CAM
-                if 'camera' in data and 'Wall-E' in str(data):
-                    print(f"✓ Found ESP32-CAM at {test_ip}")
+                if ('camera' in data and 'Wall-E' in str(data)) or \
+                        ('ESP32' in str(data)) or \
+                        ('version' in data and 'Adaptive' in str(data)):
+                    print(f"✅ Found ESP32-CAM at {test_ip}")
                     print(f"Camera details: {data}")
                     ESP32_CAM_IP = test_ip
                     return test_ip
@@ -102,19 +142,33 @@ def discover_esp32_cam():
         except:
             continue
 
-    print("✗ ESP32-CAM not found on Wall-E network")
+    print("❌ ESP32-CAM not found on Wall-E network")
     return None
 
 
 def check_camera_connection():
-    """Check if ESP32-CAM is accessible"""
+    """Enhanced camera connection check"""
+    global ESP32_CAM_IP
+
     if not ESP32_CAM_IP:
         return False
 
     try:
-        response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=10)
-        return response.status_code == 200
-    except:
+        print(f"Testing camera connection to {ESP32_CAM_IP}...")
+        response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=5)
+
+        if response.status_code == 200:
+            print(f"✅ Camera at {ESP32_CAM_IP} is responding")
+            return True
+        else:
+            print(f"❌ Camera at {ESP32_CAM_IP} returned status {response.status_code}")
+            return False
+
+    except requests.exceptions.Timeout:
+        print(f"❌ Camera connection timeout to {ESP32_CAM_IP}")
+        return False
+    except Exception as e:
+        print(f"❌ Camera connection error to {ESP32_CAM_IP}: {e}")
         return False
 
 
@@ -614,38 +668,60 @@ def ap_status():
             'message': str(e)
         })
 
+
 @app.route('/api/camera/status')
 def camera_status():
-    """Get camera connection status"""
+    """Get camera connection status with enhanced discovery"""
     try:
+        print("📷 Camera status requested...")
+
         if not ESP32_CAM_IP:
+            print("No camera IP set, attempting discovery...")
             discover_esp32_cam()
 
         if ESP32_CAM_IP and check_camera_connection():
-            # Get camera details
-            response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=10)
-            cam_data = response.json()
+            try:
+                # Get camera details
+                response = requests.get(f"http://{ESP32_CAM_IP}/status", timeout=5)
+                cam_data = response.json()
 
-            return jsonify({
-                'success': True,
-                'connected': True,
-                'ip': ESP32_CAM_IP,
-                'stream_url': f"http://{ESP32_CAM_IP}/stream",
-                'capture_url': f"http://{ESP32_CAM_IP}/capture",
-                'details': cam_data
-            })
+                print(f"✅ Camera connected at {ESP32_CAM_IP}")
+
+                return jsonify({
+                    'success': True,
+                    'connected': True,
+                    'ip': ESP32_CAM_IP,
+                    'stream_url': f"http://{ESP32_CAM_IP}/stream",
+                    'capture_url': f"http://{ESP32_CAM_IP}/capture",
+                    'details': cam_data
+                })
+
+            except Exception as e:
+                print(f"Error getting camera details: {e}")
+                # Return basic connection info even if details fail
+                return jsonify({
+                    'success': True,
+                    'connected': True,
+                    'ip': ESP32_CAM_IP,
+                    'stream_url': f"http://{ESP32_CAM_IP}/stream",
+                    'capture_url': f"http://{ESP32_CAM_IP}/capture",
+                    'details': {'error': str(e)}
+                })
         else:
+            print("❌ Camera not found or not responding")
             return jsonify({
                 'success': False,
                 'connected': False,
-                'message': 'ESP32-CAM not found or not responding'
+                'message': 'ESP32-CAM not found or not responding on Wall-E network'
             })
 
     except Exception as e:
+        error_msg = str(e)
+        print(f"Camera status error: {error_msg}")
         return jsonify({
             'success': False,
             'connected': False,
-            'message': str(e)
+            'message': error_msg
         })
 
 
@@ -797,15 +873,57 @@ def camera_settings():
         })
 
 
+@app.route('/api/camera/debug')
+def camera_debug():
+    """Debug camera connection issues"""
+    try:
+        debug_info = {
+            'current_camera_ip': ESP32_CAM_IP,
+            'wall_e_ip': '192.168.4.1',
+            'network_range': '192.168.4.x',
+            'scan_results': []
+        }
+
+        # Test a few IPs to see what's responding
+        test_ips = ["192.168.4.100", "192.168.4.101", "192.168.4.102"]
+
+        for ip in test_ips:
+            try:
+                response = requests.get(f"http://{ip}/status", timeout=2)
+                debug_info['scan_results'].append({
+                    'ip': ip,
+                    'status': 'responding',
+                    'http_code': response.status_code,
+                    'content': response.text[:200] if response.text else 'No content'
+                })
+            except Exception as e:
+                debug_info['scan_results'].append({
+                    'ip': ip,
+                    'status': 'not_responding',
+                    'error': str(e)
+                })
+
+        return jsonify({
+            'success': True,
+            'debug_info': debug_info
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        })
+
 # Background monitoring thread
 def camera_monitor_thread():
-    """Monitor camera connection status"""
+    """Enhanced camera monitoring with better logging"""
     global ESP32_CAM_IP
 
     while True:
         try:
             # Try to discover camera if not found
             if not ESP32_CAM_IP:
+                print("🔍 Periodic camera discovery...")
                 discover_esp32_cam()
 
             # Check connection if IP is known
@@ -821,8 +939,10 @@ def camera_monitor_thread():
 
                 # If disconnected, clear IP to trigger rediscovery
                 if not connected:
-                    print(f"Lost connection to ESP32-CAM at {ESP32_CAM_IP}")
+                    print(f"❌ Lost connection to ESP32-CAM at {ESP32_CAM_IP}")
                     ESP32_CAM_IP = None
+                else:
+                    print(f"✅ Camera monitor: ESP32-CAM online at {ESP32_CAM_IP}")
 
         except Exception as e:
             print(f"Camera monitor error: {e}")
