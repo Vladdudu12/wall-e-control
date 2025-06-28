@@ -19,7 +19,7 @@ from datetime import datetime
 try:
     from modules.arduino_controller import ArduinoController
     from modules.audio_system import AudioSystem
-    from modules.display_controller import EnhancedDisplayController
+    from modules.display_controller import EnhancedDisplayController as DisplayController
     from modules.battery_monitor import BatteryMonitor
 except ImportError as e:
     print(f"Warning: Could not import module: {e}")
