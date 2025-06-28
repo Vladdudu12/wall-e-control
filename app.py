@@ -19,7 +19,7 @@ from datetime import datetime
 try:
     from modules.arduino_controller import ArduinoController
     from modules.audio_system import AudioSystem
-    from modules.display_controller import EnhancedDisplayController as DisplayController
+    from modules.display_controller import EnhancedDisplayController
     from modules.battery_monitor import BatteryMonitor
 except ImportError as e:
     print(f"Warning: Could not import module: {e}")
@@ -88,7 +88,7 @@ def initialize_hardware():
 
     try:
         # Initialize OLED display
-        display = DisplayController()
+        display = EnhancedDisplayController()
         print("✓ Display controller initialized")
     except Exception as e:
         print(f"✗ Display controller failed: {e}")
